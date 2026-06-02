@@ -16,6 +16,7 @@ services:
     image: minio/minio
     container_name: soc-minio
     command: server /data --console-address ":9001"
+    restart: always
     environment:
       MINIO_ROOT_USER: minio
       MINIO_ROOT_PASSWORD: minio123
@@ -38,6 +39,18 @@ services:
       - minio
     env_file:
       - .env
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: soc-pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@gmail.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5051:80"
+    depends_on:
+      - postgres
 
 volumes:
   pgdata:

@@ -21,14 +21,14 @@ export class PostsService {
     private followRepo: Repository<Follow>,
   ) { }
 
-  // ✅ CREATE POST
+  // ✅ CREATE POST (FIX QUAN TRỌNG 🔥)
   async create(userId: string, dto: any) {
     if (!dto.caption) {
       throw new BadRequestException('Caption is required');
     }
 
     const post = this.repo.create({
-      author: { id: userId },
+      authorId: userId, // ✅ FIX QUAN TRỌNG (KHÔNG dùng author nữa)
       caption: dto.caption,
       images: dto.images || [],
     });
@@ -36,7 +36,7 @@ export class PostsService {
     return this.repo.save(post);
   }
 
-  // ✅ UPDATE POST (FIX LỖI 500 🔥)
+  // ✅ UPDATE POST
   async update(postId: string, userId: string, dto: any) {
     const post = await this.repo.findOne({
       where: { id: postId },
@@ -47,12 +47,10 @@ export class PostsService {
     if (post.author.id !== userId)
       throw new ForbiddenException('No permission');
 
-    // ✅ CHECK DTO RỖNG (QUAN TRỌNG)
-    if (!dto || (Object.keys(dto).length === 0)) {
+    if (!dto || Object.keys(dto).length === 0) {
       throw new BadRequestException('No data to update');
     }
 
-    // ✅ chỉ update field hợp lệ
     if (dto.caption !== undefined) {
       post.caption = dto.caption;
     }
@@ -64,7 +62,7 @@ export class PostsService {
     return this.repo.save(post);
   }
 
-  // ✅ DELETE POST
+  // ✅ DELETE
   async delete(postId: string, userId: string) {
     const post = await this.repo.findOne({
       where: { id: postId },
@@ -76,11 +74,10 @@ export class PostsService {
       throw new ForbiddenException('No permission');
 
     await this.repo.delete(postId);
-
     return { message: 'Post deleted' };
   }
 
-  // ✅ GET ALL POSTS
+  // ✅ GET ALL
   async findAll() {
     return this.repo.find({
       relations: ['author'],
@@ -88,16 +85,16 @@ export class PostsService {
     });
   }
 
-  // ✅ GET POSTS BY USER
+  // ✅ GET BY USER
   async findByUser(userId: string) {
     return this.repo.find({
-      where: { author: { id: userId } },
+      where: { authorId: userId }, // ✅ FIX
       relations: ['author'],
       order: { createdAt: 'DESC' },
     });
   }
 
-  // ✅ FEED (GIỮ NGUYÊN - OK ✅)
+  // ✅ FEED
   async getFeed(userId: string) {
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
@@ -114,7 +111,7 @@ export class PostsService {
     if (followingIds.length > 0) {
       posts = await this.repo.find({
         where: {
-          author: { id: In(followingIds) },
+          authorId: In(followingIds), // ✅ FIX
           createdAt: MoreThan(oneWeekAgo),
         },
         relations: ['author'],

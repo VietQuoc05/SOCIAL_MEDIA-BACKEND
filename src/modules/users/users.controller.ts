@@ -12,12 +12,18 @@ import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../../common/guards/jwt.guard';
 import { CurrentUser } from '../../common/decorators/user.decorator';
 
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiQuery,
+  ApiParam,
+} from '@nestjs/swagger';
 
 @ApiTags('Users')
 @Controller('users')
 export class UsersController {
-  constructor(private service: UsersService) {}
+  constructor(private readonly service: UsersService) {}
 
   // ✅ GET ALL USERS
   @Get()
@@ -29,27 +35,29 @@ export class UsersController {
   // ✅ SEARCH USER
   @Get('search')
   @ApiOperation({ summary: 'Search users by keyword' })
+  @ApiQuery({ name: 'q', required: true, description: 'Search keyword' })
   search(@Query('q') q: string) {
     return this.service.search(q);
   }
 
-  // ✅ GET CURRENT USER (FIX QUAN TRỌNG 🔥)
+  // ✅ GET CURRENT USER 🔥 (QUAN TRỌNG NHẤT)
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Get('me')
   @ApiOperation({ summary: 'Get current user profile' })
   getMe(@CurrentUser() user: any) {
-    return this.service.findById(user.id); // ✅ dùng id đã map ở JwtStrategy
+    return this.service.findById(user.id); // ✅ dùng id từ JwtStrategy
   }
 
   // ✅ GET USER BY ID
   @Get(':id')
   @ApiOperation({ summary: 'Get user by id' })
+  @ApiParam({ name: 'id', description: 'User ID' })
   findById(@Param('id') id: string) {
     return this.service.findById(id);
   }
 
-  // ✅ UPDATE PROFILE
+  // ✅ UPDATE CURRENT USER PROFILE
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Patch('me')
@@ -58,4 +66,3 @@ export class UsersController {
     return this.service.updateProfile(user.id, dto); // ✅ dùng id
   }
 }
-``

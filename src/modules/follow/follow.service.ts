@@ -19,10 +19,26 @@ export class FollowService {
       throw new BadRequestException('Cannot follow yourself');
     }
 
-    return this.repo.save({
-      follower: { id: userId },
-      following: { id: targetId },
+    const exists = await this.repo.findOne({
+      where: {
+        follower: { id: userId },
+        following: { id: targetId },
+      },
     });
+
+    if (exists) {
+      throw new BadRequestException('Already following this user');
+    }
+
+    return this.repo
+      .createQueryBuilder()
+      .insert()
+      .into(Follow)
+      .values({
+        follower: { id: userId },
+        following: { id: targetId },
+      })
+      .execute();
   }
 
   async unfollow(userId: string, targetId: string) {

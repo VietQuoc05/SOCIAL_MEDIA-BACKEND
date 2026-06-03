@@ -19,16 +19,26 @@ export class PostsService {
 
     @InjectRepository(Follow)
     private followRepo: Repository<Follow>,
-  ) { }
+  ) {}
 
-  // ✅ CREATE POST (FIX QUAN TRỌNG 🔥)
+  // ============================
+  // ✅ CREATE POST
+  // ============================
   async create(userId: string, dto: any) {
     if (!dto.caption) {
       throw new BadRequestException('Caption is required');
     }
 
+    if (!Array.isArray(dto.images)) {
+      throw new BadRequestException('Images must be an array');
+    }
+
+    if (dto.images.length > 10) {
+      throw new BadRequestException('Max 10 images allowed');
+    }
+
     const post = this.repo.create({
-      authorId: userId, // ✅ FIX QUAN TRỌNG (KHÔNG dùng author nữa)
+      authorId: userId,
       caption: dto.caption,
       images: dto.images || [],
     });
@@ -36,16 +46,22 @@ export class PostsService {
     return this.repo.save(post);
   }
 
+  // ============================
   // ✅ UPDATE POST
+  // ============================
   async update(postId: string, userId: string, dto: any) {
     const post = await this.repo.findOne({
       where: { id: postId },
       relations: ['author'],
     });
 
-    if (!post) throw new NotFoundException('Post not found');
-    if (post.author.id !== userId)
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
+    if (post.author.id !== userId) {
       throw new ForbiddenException('No permission');
+    }
 
     if (!dto || Object.keys(dto).length === 0) {
       throw new BadRequestException('No data to update');
@@ -56,28 +72,41 @@ export class PostsService {
     }
 
     if (dto.images !== undefined) {
+      if (!Array.isArray(dto.images)) {
+        throw new BadRequestException('Images must be an array');
+      }
+
       post.images = dto.images;
     }
 
     return this.repo.save(post);
   }
 
-  // ✅ DELETE
+  // ============================
+  // ✅ DELETE POST
+  // ============================
   async delete(postId: string, userId: string) {
     const post = await this.repo.findOne({
       where: { id: postId },
       relations: ['author'],
     });
 
-    if (!post) throw new NotFoundException('Post not found');
-    if (post.author.id !== userId)
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
+    if (post.author.id !== userId) {
       throw new ForbiddenException('No permission');
+    }
 
     await this.repo.delete(postId);
+
     return { message: 'Post deleted' };
   }
 
-  // ✅ GET ALL
+  // ============================
+  // ✅ GET ALL POSTS
+  // ============================
   async findAll() {
     return this.repo.find({
       relations: ['author'],
@@ -85,16 +114,20 @@ export class PostsService {
     });
   }
 
-  // ✅ GET BY USER
+  // ============================
+  // ✅ GET POSTS BY USER
+  // ============================
   async findByUser(userId: string) {
     return this.repo.find({
-      where: { authorId: userId }, // ✅ FIX
+      where: { authorId: userId },
       relations: ['author'],
       order: { createdAt: 'DESC' },
     });
   }
 
+  // ============================
   // ✅ FEED
+  // ============================
   async getFeed(userId: string) {
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
@@ -108,10 +141,11 @@ export class PostsService {
 
     let posts = [];
 
+    // ✅ ưu tiên post từ người follow
     if (followingIds.length > 0) {
       posts = await this.repo.find({
         where: {
-          authorId: In(followingIds), // ✅ FIX
+          authorId: In(followingIds),
           createdAt: MoreThan(oneWeekAgo),
         },
         relations: ['author'],
@@ -120,6 +154,7 @@ export class PostsService {
       });
     }
 
+    // ✅ bổ sung post phổ biến
     if (posts.length < 50) {
       const excludeIds = posts.map(p => p.id);
 

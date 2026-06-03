@@ -14,6 +14,7 @@ export class FollowService {
     private repo: Repository<Follow>,
   ) {}
 
+  // ✅ FOLLOW
   async follow(userId: string, targetId: string) {
     if (userId === targetId) {
       throw new BadRequestException('Cannot follow yourself');
@@ -27,20 +28,19 @@ export class FollowService {
     });
 
     if (exists) {
-      throw new BadRequestException('Already following this user');
+      throw new BadRequestException('Already following');
     }
 
-    return this.repo
-      .createQueryBuilder()
-      .insert()
-      .into(Follow)
-      .values({
-        follower: { id: userId },
-        following: { id: targetId },
-      })
-      .execute();
+    // ✅ FIX CHÍNH
+    const follow = this.repo.create({
+      follower: { id: userId },
+      following: { id: targetId },
+    });
+
+    return this.repo.save(follow);
   }
 
+  // ✅ UNFOLLOW
   async unfollow(userId: string, targetId: string) {
     return this.repo.delete({
       follower: { id: userId },
@@ -48,6 +48,7 @@ export class FollowService {
     });
   }
 
+  // ✅ LẤY FOLLOWERS (ai follow mình)
   async getFollowers(userId: string) {
     return this.repo.find({
       where: { following: { id: userId } },
@@ -55,10 +56,24 @@ export class FollowService {
     });
   }
 
+  // ✅ LẤY FOLLOWING (mình follow ai)
   async getFollowing(userId: string) {
     return this.repo.find({
       where: { follower: { id: userId } },
       relations: ['following'],
     });
+  }
+
+  // ✅ COUNT (QUAN TRỌNG)
+  async getFollowStats(userId: string) {
+    const followers = await this.repo.count({
+      where: { following: { id: userId } },
+    });
+
+    const following = await this.repo.count({
+      where: { follower: { id: userId } },
+    });
+
+    return { followers, following };
   }
 }

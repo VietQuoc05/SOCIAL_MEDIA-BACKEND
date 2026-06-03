@@ -2,12 +2,22 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   // ✅ Enable CORS
   app.enableCors();
+
+  // ✅ Enable validation (QUAN TRỌNG)
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true, // bỏ field thừa
+      forbidNonWhitelisted: true, // chặn field lạ
+      transform: true,
+    }),
+  );
 
   // ✅ Swagger config
   const config = new DocumentBuilder()
@@ -18,7 +28,7 @@ async function bootstrap() {
       type: 'http',
       scheme: 'bearer',
       bearerFormat: 'JWT',
-    }) // ✅ KHÔNG dùng key custom nữa
+    })
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

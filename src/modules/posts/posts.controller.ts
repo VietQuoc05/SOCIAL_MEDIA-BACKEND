@@ -13,6 +13,15 @@ import { PostsService } from './posts.service';
 import { JwtAuthGuard } from '../../common/guards/jwt.guard';
 import { CurrentUser } from '../../common/decorators/user.decorator';
 
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+} from '@nestjs/swagger';
+
+import { CreatePostDto } from './dto/create-post.dto';
+
+@ApiTags('Posts')
 @Controller('posts')
 export class PostsController {
   constructor(private readonly service: PostsService) {}
@@ -21,20 +30,24 @@ export class PostsController {
   // ✅ CREATE POST
   // ============================
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create a new post' })
   @HttpPost()
-  create(@CurrentUser() user: any, @Body() dto: any) {
-    return this.service.create(user.id, dto);
+  create(@CurrentUser() user: any, @Body() dto: CreatePostDto) {
+    return this.service.create(user.id, dto); // ✅ FIX QUAN TRỌNG
   }
 
   // ============================
   // ✅ UPDATE POST
   // ============================
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update a post' })
   @Patch(':id')
   update(
     @Param('id') id: string,
     @CurrentUser() user: any,
-    @Body() dto: any,
+    @Body() dto: CreatePostDto,
   ) {
     return this.service.update(id, user.id, dto);
   }
@@ -43,6 +56,8 @@ export class PostsController {
   // ✅ DELETE POST
   // ============================
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete a post' })
   @Delete(':id')
   delete(@Param('id') id: string, @CurrentUser() user: any) {
     return this.service.delete(id, user.id);
@@ -51,15 +66,18 @@ export class PostsController {
   // ============================
   // ✅ GET ALL POSTS
   // ============================
+  @ApiOperation({ summary: 'Get all posts' })
   @Get()
   findAll() {
     return this.service.findAll();
   }
 
   // ============================
-  // ✅ GET MY POSTS 🔥 (MỚI)
+  // ✅ GET MY POSTS
   // ============================
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get my posts' })
   @Get('me')
   getMyPosts(@CurrentUser() user: any) {
     return this.service.findByUser(user.id);
@@ -68,6 +86,7 @@ export class PostsController {
   // ============================
   // ✅ GET POSTS BY USER
   // ============================
+  @ApiOperation({ summary: 'Get posts by user' })
   @Get('user/:id')
   findByUser(@Param('id') id: string) {
     return this.service.findByUser(id);
@@ -77,6 +96,8 @@ export class PostsController {
   // ✅ FEED
   // ============================
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get user feed' })
   @Get('feed')
   feed(@CurrentUser() user: any) {
     return this.service.getFeed(user.id);

@@ -10,6 +10,7 @@ import { Repository, MoreThan, In } from 'typeorm';
 
 import { Post } from '../../database/entities/post.entity';
 import { Follow } from '../../database/entities/follow.entity';
+import { Reaction } from '../../database/entities/reaction.entity';
 
 @Injectable()
 export class PostsService {
@@ -19,6 +20,9 @@ export class PostsService {
 
     @InjectRepository(Follow)
     private followRepo: Repository<Follow>,
+
+    @InjectRepository(Reaction)
+    private reactionRepo: Repository<Reaction>,
   ) {}
 
   // ============================
@@ -75,7 +79,6 @@ export class PostsService {
       if (!Array.isArray(dto.images)) {
         throw new BadRequestException('Images must be an array');
       }
-
       post.images = dto.images;
     }
 
@@ -105,24 +108,28 @@ export class PostsService {
   }
 
   // ============================
-  // ✅ GET ALL POSTS
+  // ✅ GET ALL POSTS + REACTION COUNT 🔥
   // ============================
   async findAll() {
-    return this.repo.find({
+    const posts = await this.repo.find({
       relations: ['author'],
       order: { createdAt: 'DESC' },
     });
+
+    return this.attachReactionSummary(posts);
   }
 
   // ============================
   // ✅ GET POSTS BY USER
   // ============================
   async findByUser(userId: string) {
-    return this.repo.find({
+    const posts = await this.repo.find({
       where: { authorId: userId },
       relations: ['author'],
       order: { createdAt: 'DESC' },
     });
+
+    return this.attachReactionSummary(posts);
   }
 
   // ============================
@@ -139,9 +146,8 @@ export class PostsService {
 
     const followingIds = follows.map(f => f.following.id);
 
-    let posts = [];
+    let posts: Post[] = [];
 
-    // ✅ ưu tiên post từ người follow
     if (followingIds.length > 0) {
       posts = await this.repo.find({
         where: {
@@ -154,7 +160,6 @@ export class PostsService {
       });
     }
 
-    // ✅ bổ sung post phổ biến
     if (posts.length < 50) {
       const excludeIds = posts.map(p => p.id);
 
@@ -175,6 +180,33 @@ export class PostsService {
       posts = [...posts, ...extra];
     }
 
-    return posts;
+    return this.attachReactionSummary(posts);
+  }
+
+  // ============================
+  // ✅ ATTACH REACTION COUNT 🔥
+  // ============================
+  private async attachReactionSummary(posts: Post[]) {
+    const postIds = posts.map(p => p.id);
+
+    const reactions = await this.reactionRepo.find({
+      where: { post: { id: In(postIds) } },
+    });
+
+    const map = {};
+
+    reactions.forEach(r => {
+      if (!map[r.post.id]) {
+        map[r.post.id] = {};
+      }
+
+      map[r.post.id][r.type] =
+        (map[r.post.id][r.type] || 0) + 1;
+    });
+
+    return posts.map(post => ({
+      ...post,
+      reactions: map[post.id] || {},
+    }));
   }
 }

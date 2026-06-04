@@ -37,11 +37,7 @@ export class CommentsService {
       parent: dto.parentId ? { id: dto.parentId } : null,
     });
 
-    await this.postRepo.increment(
-      { id: postId },
-      'interactionScore',
-      1,
-    );
+    await this.postRepo.increment({ id: postId }, 'interactionScore', 1);
 
     return this.repo.save(comment);
   }
@@ -63,12 +59,58 @@ export class CommentsService {
 
     await this.repo.delete(commentId);
 
-    await this.postRepo.decrement(
-      { id: postId },
-      'interactionScore',
-      1,
-    );
+    await this.postRepo.decrement({ id: postId }, 'interactionScore', 1);
 
     return { message: 'Comment deleted' };
+  }
+
+  // ✅ GET COMMENTS TREE + REACTION COUNT 🔥
+  async getByPost(postId: string) {
+    const comments = await this.repo
+      .createQueryBuilder('comment')
+      .leftJoinAndSelect('comment.author', 'author')
+      .leftJoinAndSelect('comment.reactions', 'reactions')
+      .leftJoinAndSelect('comment.parent', 'parent')
+      .where('comment.postId = :postId', { postId })
+      .orderBy('comment.createdAt', 'ASC')
+      .getMany();
+
+    const reactionCount = (reactions: any[]) => {
+      const result = {};
+      reactions.forEach(r => {
+        result[r.type] = (result[r.type] || 0) + 1;
+      });
+      return result;
+    };
+
+    const map = new Map();
+
+    comments.forEach(c => {
+      map.set(c.id, {
+        id: c.id,
+        content: c.content,
+        image: c.image,
+        author: c.author,
+        createdAt: c.createdAt,
+        reactions: reactionCount(c.reactions || []),
+        parentId: c.parent ? c.parent.id : null,
+        replies: [],
+      });
+    });
+
+    const tree = [];
+
+    map.forEach(comment => {
+      if (comment.parentId) {
+        const parent = map.get(comment.parentId);
+        if (parent) {
+          parent.replies.push(comment);
+        }
+      } else {
+        tree.push(comment);
+      }
+    });
+
+    return tree;
   }
 }

@@ -5,6 +5,7 @@ import {
   Body,
   Param,
   UseGuards,
+  Get,
 } from '@nestjs/common';
 
 import { CommentsService } from './comments.service';
@@ -26,8 +27,8 @@ import {
 export class CommentsController {
   constructor(private readonly service: CommentsService) {}
 
-  // ✅ CREATE COMMENT
-  @ApiOperation({ summary: 'Create a comment on post' })
+  // ✅ CREATE
+  @ApiOperation({ summary: 'Create a comment' })
   @Post(':postId')
   create(
     @Param('postId') postId: string,
@@ -37,7 +38,7 @@ export class CommentsController {
     return this.service.create(user.id, postId, dto);
   }
 
-  // ✅ DELETE COMMENT
+  // ✅ DELETE
   @ApiOperation({ summary: 'Delete a comment' })
   @Delete(':id/:postId')
   delete(
@@ -46,5 +47,12 @@ export class CommentsController {
     @CurrentUser() user: any,
   ) {
     return this.service.delete(user.id, id, postId);
+  }
+
+  // ✅ GET COMMENTS TREE 🔥
+  @ApiOperation({ summary: 'Get comments by post (tree)' })
+  @Get('post/:postId')
+  getByPost(@Param('postId') postId: string) {
+    return this.service.getByPost(postId);
   }
 }

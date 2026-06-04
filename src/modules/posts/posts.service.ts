@@ -59,9 +59,7 @@ export class PostsService {
       relations: ['author'],
     });
 
-    if (!post) {
-      throw new NotFoundException('Post not found');
-    }
+    if (!post) throw new NotFoundException('Post not found');
 
     if (post.author.id !== userId) {
       throw new ForbiddenException('No permission');
@@ -71,7 +69,9 @@ export class PostsService {
       throw new BadRequestException('No data to update');
     }
 
-    if (dto.caption !== undefined) post.caption = dto.caption;
+    if (dto.caption !== undefined) {
+      post.caption = dto.caption;
+    }
 
     if (dto.images !== undefined) {
       if (!Array.isArray(dto.images)) {
@@ -92,9 +92,7 @@ export class PostsService {
       relations: ['author'],
     });
 
-    if (!post) {
-      throw new NotFoundException('Post not found');
-    }
+    if (!post) throw new NotFoundException('Post not found');
 
     if (post.author.id !== userId) {
       throw new ForbiddenException('No permission');
@@ -141,8 +139,12 @@ export class PostsService {
   // ============================
   // ✅ ATTACH SUMMARY
   // ============================
-  private attachSummary(posts: Post[], reactions, userId?: string) {
-    const map = {};
+  private attachSummary(
+    posts: Post[],
+    reactions: Reaction[],
+    userId?: string,
+  ) {
+    const map: Record<string, Reaction[]> = {};
 
     reactions.forEach(r => {
       const postId = r.post.id;
@@ -175,7 +177,25 @@ export class PostsService {
   }
 
   // ============================
-  // ✅ GET FEED (GIỮ NGUYÊN)
+  // ✅ GET POSTS BY USER ✅ FIX BUILD ERROR
+  // ============================
+  async findByUser(userId: string, currentUserId?: string) {
+    const posts = await this.repo.find({
+      where: { authorId: userId },
+      relations: ['author'],
+      order: { createdAt: 'DESC' },
+    });
+
+    const reactions = await this.reactionRepo.find({
+      where: { post: { id: In(posts.map(p => p.id)) } },
+      relations: ['post', 'user'],
+    });
+
+    return this.attachSummary(posts, reactions, currentUserId);
+  }
+
+  // ============================
+  // ✅ FEED
   // ============================
   async getFeed(userId: string) {
     const oneWeekAgo = new Date();

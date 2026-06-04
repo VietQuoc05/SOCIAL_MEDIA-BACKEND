@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -15,7 +19,16 @@ export class CommentsService {
     private postRepo: Repository<Post>,
   ) {}
 
+  // ✅ CREATE COMMENT
   async create(userId: string, postId: string, dto: any) {
+    const post = await this.postRepo.findOne({
+      where: { id: postId },
+    });
+
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
     const comment = this.repo.create({
       author: { id: userId },
       post: { id: postId },
@@ -24,15 +37,38 @@ export class CommentsService {
       parent: dto.parentId ? { id: dto.parentId } : null,
     });
 
-    await this.postRepo.increment({ id: postId }, 'interactionScore', 1);
+    await this.postRepo.increment(
+      { id: postId },
+      'interactionScore',
+      1,
+    );
 
     return this.repo.save(comment);
   }
 
-  async delete(commentId: string, postId: string) {
+  // ✅ DELETE COMMENT
+  async delete(userId: string, commentId: string, postId: string) {
+    const comment = await this.repo.findOne({
+      where: { id: commentId },
+      relations: ['author'],
+    });
+
+    if (!comment) {
+      throw new NotFoundException('Comment not found');
+    }
+
+    if (comment.author.id !== userId) {
+      throw new ForbiddenException('No permission');
+    }
+
     await this.repo.delete(commentId);
 
-    await this.postRepo.decrement({ id: postId }, 'interactionScore', 1);
+    await this.postRepo.decrement(
+      { id: postId },
+      'interactionScore',
+      1,
+    );
+
+    return { message: 'Comment deleted' };
   }
 }
-``

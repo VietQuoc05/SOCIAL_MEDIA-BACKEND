@@ -1,4 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -20,11 +23,19 @@ export class ReactionsService {
     private commentRepo: Repository<Comment>,
   ) {}
 
+  // ✅ REACT POST
   async reactPost(userId: string, postId: string, type: string) {
-    const reactionType = type as ReactionType; // ✅ FIX
+    const reactionType = type as ReactionType;
+
+    if (!Object.values(ReactionType).includes(reactionType)) {
+      throw new BadRequestException('Invalid reaction type');
+    }
 
     const existing = await this.repo.findOne({
-      where: { user: { id: userId }, post: { id: postId } },
+      where: {
+        user: { id: userId },
+        post: { id: postId },
+      },
     });
 
     if (existing) {
@@ -32,9 +43,13 @@ export class ReactionsService {
       return this.repo.save(existing);
     }
 
-    await this.postRepo.increment({ id: postId }, 'interactionScore', 1);
+    await this.postRepo.increment(
+      { id: postId },
+      'interactionScore',
+      1,
+    );
 
-    const reaction = this.repo.create({  // ✅ FIX
+    const reaction = this.repo.create({
       user: { id: userId },
       post: { id: postId },
       type: reactionType,
@@ -43,6 +58,7 @@ export class ReactionsService {
     return this.repo.save(reaction);
   }
 
+  // ✅ REMOVE POST REACTION
   async removePostReaction(userId: string, postId: string) {
     const result = await this.repo.delete({
       user: { id: userId },
@@ -50,15 +66,33 @@ export class ReactionsService {
     });
 
     if (result.affected) {
-      await this.postRepo.decrement({ id: postId }, 'interactionScore', 1);
+      await this.postRepo.decrement(
+        { id: postId },
+        'interactionScore',
+        1,
+      );
     }
+
+    return { message: 'Reaction removed' };
   }
 
-  async reactComment(userId: string, commentId: string, type: string) {
-    const reactionType = type as ReactionType; // ✅ FIX
+  // ✅ REACT COMMENT
+  async reactComment(
+    userId: string,
+    commentId: string,
+    type: string,
+  ) {
+    const reactionType = type as ReactionType;
+
+    if (!Object.values(ReactionType).includes(reactionType)) {
+      throw new BadRequestException('Invalid reaction type');
+    }
 
     const existing = await this.repo.findOne({
-      where: { user: { id: userId }, comment: { id: commentId } },
+      where: {
+        user: { id: userId },
+        comment: { id: commentId },
+      },
     });
 
     if (existing) {
@@ -72,7 +106,7 @@ export class ReactionsService {
       1,
     );
 
-    const reaction = this.repo.create({  // ✅ FIX
+    const reaction = this.repo.create({
       user: { id: userId },
       comment: { id: commentId },
       type: reactionType,
@@ -81,7 +115,11 @@ export class ReactionsService {
     return this.repo.save(reaction);
   }
 
-  async removeCommentReaction(userId: string, commentId: string) {
+  // ✅ REMOVE COMMENT REACTION
+  async removeCommentReaction(
+    userId: string,
+    commentId: string,
+  ) {
     const result = await this.repo.delete({
       user: { id: userId },
       comment: { id: commentId },
@@ -94,6 +132,7 @@ export class ReactionsService {
         1,
       );
     }
+
+    return { message: 'Reaction removed' };
   }
 }
-``

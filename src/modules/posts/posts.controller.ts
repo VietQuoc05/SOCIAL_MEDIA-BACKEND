@@ -34,7 +34,7 @@ export class PostsController {
   @ApiOperation({ summary: 'Create a new post' })
   @HttpPost()
   create(@CurrentUser() user: any, @Body() dto: CreatePostDto) {
-    return this.service.create(user.id, dto); // ✅ FIX QUAN TRỌNG
+    return this.service.create(user.id, dto);
   }
 
   // ============================
@@ -64,32 +64,39 @@ export class PostsController {
   }
 
   // ============================
-  // ✅ GET ALL POSTS
+  // ✅ GET ALL POSTS (PUBLIC)
   // ============================
+  @UseGuards(JwtAuthGuard) // ✅ thêm guard để có user
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all posts' })
   @Get()
-  findAll() {
-    return this.service.findAll();
+  findAll(@CurrentUser() user: any) {
+    return this.service.findAll(user.id); // ✅ FIX
   }
 
   // ============================
-  // ✅ GET MY POSTS
+  // ✅ GET MY POSTS ✅ FIX QUAN TRỌNG
   // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get my posts' })
   @Get('me')
   getMyPosts(@CurrentUser() user: any) {
-    return this.service.findByUser(user.id);
+    return this.service.findByUser(user.id, user.id); // ✅ FIX
   }
 
   // ============================
   // ✅ GET POSTS BY USER
   // ============================
+  @UseGuards(JwtAuthGuard) // ✅ để có myReaction
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get posts by user' })
   @Get('user/:id')
-  findByUser(@Param('id') id: string) {
-    return this.service.findByUser(id);
+  findByUser(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.service.findByUser(id, user.id); // ✅ FIX
   }
 
   // ============================

@@ -2,8 +2,8 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { User } from '../../database/entities/user.entity';
-import { Follow } from '../../database/entities/follow.entity'; ✅
-import { Post } from '../../database/entities/post.entity';     ✅
+import { Follow } from '../../database/entities/follow.entity';
+import { Post } from '../../database/entities/post.entity';
 
 import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
@@ -12,8 +12,8 @@ import { UsersController } from './users.controller';
   imports: [
     TypeOrmModule.forFeature([
       User,
-      Follow, // ✅ FIX QUAN TRỌNG
-      Post,   // ✅ FIX QUAN TRỌNG
+      Follow,
+      Post,
     ]),
   ],
   providers: [UsersService],
@@ -21,4 +21,3 @@ import { UsersController } from './users.controller';
   exports: [UsersService],
 })
 export class UsersModule {}
-``

@@ -12,51 +12,83 @@ import { User } from './user.entity';
 import { Post } from './post.entity';
 import { Reaction } from './reaction.entity';
 
-@Entity()
+@Entity('comments')
 export class Comment {
+  // ============================
+  // ✅ PRIMARY KEY
+  // ============================
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ManyToOne(() => User, (user) => user.comments, {
+  // ============================
+  // ✅ AUTHOR
+  // ============================
+  @ManyToOne(() => User, user => user.comments, {
     onDelete: 'CASCADE',
   })
   @Index()
   author: User;
 
-  @ManyToOne(() => Post, (post) => post.comments, {
+  // ============================
+  // ✅ POST
+  // ============================
+  @ManyToOne(() => Post, post => post.comments, {
     onDelete: 'CASCADE',
   })
   @Index()
   post: Post;
 
-  // reply
-  @ManyToOne(() => Comment, (comment) => comment.replies, {
+  // ============================
+  // ✅ PARENT COMMENT (REPLY)
+  // ============================
+  @ManyToOne(() => Comment, comment => comment.replies, {
     nullable: true,
     onDelete: 'CASCADE',
   })
   parent: Comment;
 
-  @OneToMany(() => Comment, (comment) => comment.parent)
+  // ============================
+  // ✅ CHILD COMMENTS (REPLIES)
+  // ============================
+  @OneToMany(() => Comment, comment => comment.parent)
   replies: Comment[];
 
+  // ============================
+  // ✅ CONTENT
+  // ============================
   @Column({ type: 'text' })
   content: string;
 
+  // ============================
+  // ✅ IMAGE (OPTIONAL)
+  // ============================
   @Column({ nullable: true })
-  image: string;
+  image?: string;
 
-  @OneToMany(() => Reaction, (reaction) => reaction.comment)
+  // ============================
+  // ✅ REACTIONS
+  // ============================
+  @OneToMany(() => Reaction, reaction => reaction.comment)
   reactions: Reaction[];
 
+  // ============================
+  // ✅ INTERACTION SCORE
+  // ============================
   @Column({ default: 0 })
   interactionScore: number;
 
+  // ============================
+  // ✅ FLAGS (OPTIONAL FUTURE USE)
+  // ============================
   @Column({ default: false })
   isDeleted: boolean;
 
   @Column({ default: false })
   isEdited: boolean;
 
+  // ============================
+  // ✅ CREATED TIME
+  // ============================
   @CreateDateColumn()
   @Index()
   createdAt: Date;

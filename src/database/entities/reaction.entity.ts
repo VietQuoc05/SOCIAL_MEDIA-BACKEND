@@ -13,36 +13,61 @@ import { Post } from './post.entity';
 import { Comment } from './comment.entity';
 import { ReactionType } from '../../common/enums/reaction.enum';
 
-@Entity()
+@Entity('reactions')
+
+// ✅ 1 USER chỉ react 1 POST
 @Unique(['user', 'post'])
+
+// ✅ 1 USER chỉ react 1 COMMENT
 @Unique(['user', 'comment'])
 export class Reaction {
+  // ============================
+  // ✅ PRIMARY KEY
+  // ============================
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ManyToOne(() => User, (user) => user.reactions, {
+  // ============================
+  // ✅ USER
+  // ============================
+  @ManyToOne(() => User, user => user.reactions, {
     onDelete: 'CASCADE',
   })
   @Index()
   user: User;
 
-  @ManyToOne(() => Post, (post) => post.reactions, {
+  // ============================
+  // ✅ POST (OPTIONAL)
+  // ============================
+  @ManyToOne(() => Post, post => post.reactions, {
     nullable: true,
     onDelete: 'CASCADE',
   })
   @Index()
-  post: Post;
+  post: Post | null;
 
-  @ManyToOne(() => Comment, (comment) => comment.reactions, {
+  // ============================
+  // ✅ COMMENT (OPTIONAL)
+  // ============================
+  @ManyToOne(() => Comment, comment => comment.reactions, {
     nullable: true,
     onDelete: 'CASCADE',
   })
   @Index()
-  comment: Comment;
+  comment: Comment | null;
 
-  @Column({ type: 'enum', enum: ReactionType })
+  // ============================
+  // ✅ TYPE (LIKE / LOVE / ...)
+  // ============================
+  @Column({
+    type: 'enum',
+    enum: ReactionType,
+  })
   type: ReactionType;
 
+  // ============================
+  // ✅ CREATED TIME
+  // ============================
   @CreateDateColumn()
   createdAt: Date;
 }

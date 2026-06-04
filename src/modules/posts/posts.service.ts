@@ -71,9 +71,7 @@ export class PostsService {
       throw new BadRequestException('No data to update');
     }
 
-    if (dto.caption !== undefined) {
-      post.caption = dto.caption;
-    }
+    if (dto.caption !== undefined) post.caption = dto.caption;
 
     if (dto.images !== undefined) {
       if (!Array.isArray(dto.images)) {
@@ -108,32 +106,76 @@ export class PostsService {
   }
 
   // ============================
-  // ✅ GET ALL POSTS + REACTION COUNT 🔥
+  // ✅ BUILD REACTION SUMMARY 🔥
   // ============================
-  async findAll() {
+  private buildReactionSummary(reactions: any[], userId?: string) {
+    const counts: Record<string, number> = {};
+    let myReaction: string | null = null;
+
+    reactions.forEach(r => {
+      counts[r.type] = (counts[r.type] || 0) + 1;
+
+      if (userId && r.user?.id === userId) {
+        myReaction = r.type;
+      }
+    });
+
+    const totalReactions = Object.values(counts).reduce(
+      (a, b) => a + b,
+      0,
+    );
+
+    const topReactions = Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([type]) => type);
+
+    return {
+      reactions: counts,
+      totalReactions,
+      topReactions,
+      myReaction,
+    };
+  }
+
+  // ============================
+  // ✅ ATTACH SUMMARY
+  // ============================
+  private attachSummary(posts: Post[], reactions, userId?: string) {
+    const map = {};
+
+    reactions.forEach(r => {
+      const postId = r.post.id;
+
+      if (!map[postId]) map[postId] = [];
+      map[postId].push(r);
+    });
+
+    return posts.map(post => ({
+      ...post,
+      ...this.buildReactionSummary(map[post.id] || [], userId),
+    }));
+  }
+
+  // ============================
+  // ✅ FIND ALL
+  // ============================
+  async findAll(userId?: string) {
     const posts = await this.repo.find({
       relations: ['author'],
       order: { createdAt: 'DESC' },
     });
 
-    return this.attachReactionSummary(posts);
-  }
-
-  // ============================
-  // ✅ GET POSTS BY USER
-  // ============================
-  async findByUser(userId: string) {
-    const posts = await this.repo.find({
-      where: { authorId: userId },
-      relations: ['author'],
-      order: { createdAt: 'DESC' },
+    const reactions = await this.reactionRepo.find({
+      where: { post: { id: In(posts.map(p => p.id)) } },
+      relations: ['post', 'user'],
     });
 
-    return this.attachReactionSummary(posts);
+    return this.attachSummary(posts, reactions, userId);
   }
 
   // ============================
-  // ✅ FEED
+  // ✅ GET FEED (GIỮ NGUYÊN)
   // ============================
   async getFeed(userId: string) {
     const oneWeekAgo = new Date();
@@ -160,53 +202,11 @@ export class PostsService {
       });
     }
 
-    if (posts.length < 50) {
-      const excludeIds = posts.map(p => p.id);
-
-      const extra = await this.repo
-        .createQueryBuilder('post')
-        .leftJoinAndSelect('post.author', 'author')
-        .where('post.createdAt > :date', { date: oneWeekAgo })
-        .andWhere(
-          excludeIds.length
-            ? 'post.id NOT IN (:...ids)'
-            : '1=1',
-          { ids: excludeIds },
-        )
-        .orderBy('post.interactionScore', 'DESC')
-        .limit(50 - posts.length)
-        .getMany();
-
-      posts = [...posts, ...extra];
-    }
-
-    return this.attachReactionSummary(posts);
-  }
-
-  // ============================
-  // ✅ ATTACH REACTION COUNT 🔥
-  // ============================
-  private async attachReactionSummary(posts: Post[]) {
-    const postIds = posts.map(p => p.id);
-
     const reactions = await this.reactionRepo.find({
-      where: { post: { id: In(postIds) } },
+      where: { post: { id: In(posts.map(p => p.id)) } },
+      relations: ['post', 'user'],
     });
 
-    const map = {};
-
-    reactions.forEach(r => {
-      if (!map[r.post.id]) {
-        map[r.post.id] = {};
-      }
-
-      map[r.post.id][r.type] =
-        (map[r.post.id][r.type] || 0) + 1;
-    });
-
-    return posts.map(post => ({
-      ...post,
-      reactions: map[post.id] || {},
-    }));
+    return this.attachSummary(posts, reactions, userId);
   }
 }

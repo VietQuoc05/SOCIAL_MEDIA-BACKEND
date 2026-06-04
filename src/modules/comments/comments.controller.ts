@@ -39,7 +39,7 @@ export class CommentsController {
   }
 
   // ✅ DELETE
-  @ApiOperation({ summary: 'Delete a comment' })
+  @ApiOperation({ summary: 'Delete comment (author or post owner)' })
   @Delete(':id/:postId')
   delete(
     @Param('id') id: string,
@@ -49,10 +49,11 @@ export class CommentsController {
     return this.service.delete(user.id, id, postId);
   }
 
-  // ✅ GET COMMENTS TREE 🔥
-  @ApiOperation({ summary: 'Get comments by post (tree)' })
+  // ✅ GET TREE + HOT
+  @ApiOperation({ summary: 'Get comments (tree + hot sorting)' })
   @Get('post/:postId')
   getByPost(@Param('postId') postId: string) {
     return this.service.getByPost(postId);
   }
 }
+``

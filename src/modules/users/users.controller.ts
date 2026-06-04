@@ -25,44 +25,56 @@ import {
 export class UsersController {
   constructor(private readonly service: UsersService) {}
 
+  // ============================
   // ✅ GET ALL USERS
+  // ============================
   @Get()
   @ApiOperation({ summary: 'Get all users' })
   findAll() {
     return this.service.findAll();
   }
 
+  // ============================
   // ✅ SEARCH USER
+  // ============================
   @Get('search')
   @ApiOperation({ summary: 'Search users by keyword' })
-  @ApiQuery({ name: 'q', required: true, description: 'Search keyword' })
+  @ApiQuery({ name: 'q', required: true })
   search(@Query('q') q: string) {
     return this.service.search(q);
   }
 
-  // ✅ GET CURRENT USER 🔥 (QUAN TRỌNG NHẤT)
+  // ============================
+  // ✅ GET CURRENT USER
+  // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Get('me')
-  @ApiOperation({ summary: 'Get current user profile' })
   getMe(@CurrentUser() user: any) {
-    return this.service.findById(user.id); // ✅ dùng id từ JwtStrategy
+    return this.service.findById(user.id, user.id); // ✅ FIX
   }
 
-  // ✅ GET USER BY ID
+  // ============================
+  // ✅ GET USER BY ID (FULL PROFILE)
+  // ============================
+  @UseGuards(JwtAuthGuard) // ✅ để có mutual count
+  @ApiBearerAuth()
   @Get(':id')
-  @ApiOperation({ summary: 'Get user by id' })
-  @ApiParam({ name: 'id', description: 'User ID' })
-  findById(@Param('id') id: string) {
-    return this.service.findById(id);
+  @ApiOperation({ summary: 'Get user profile' })
+  findById(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.service.findById(id, user?.id); // ✅ FIX
   }
 
-  // ✅ UPDATE CURRENT USER PROFILE
+  // ============================
+  // ✅ UPDATE PROFILE
+  // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Patch('me')
-  @ApiOperation({ summary: 'Update current user profile' })
   update(@CurrentUser() user: any, @Body() dto: any) {
-    return this.service.updateProfile(user.id, dto); // ✅ dùng id
+    return this.service.updateProfile(user.id, dto);
   }
 }

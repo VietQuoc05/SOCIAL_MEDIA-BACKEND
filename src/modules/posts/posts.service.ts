@@ -104,7 +104,7 @@ export class PostsService {
   }
 
   // ============================
-  // ✅ BUILD REACTION SUMMARY 🔥
+  // ✅ BUILD REACTION SUMMARY
   // ============================
   private buildReactionSummary(reactions: any[], userId?: string) {
     const counts: Record<string, number> = {};
@@ -177,7 +177,7 @@ export class PostsService {
   }
 
   // ============================
-  // ✅ GET POSTS BY USER ✅ FIX BUILD ERROR
+  // ✅ FIND BY USER
   // ============================
   async findByUser(userId: string, currentUserId?: string) {
     const posts = await this.repo.find({
@@ -195,33 +195,88 @@ export class PostsService {
   }
 
   // ============================
-  // ✅ FEED
+  // ✅ FEED 3 NHÓM (FINAL 🔥)
   // ============================
   async getFeed(userId: string) {
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-    const follows = await this.followRepo.find({
+    // ✅ lấy following
+    const following = await this.followRepo.find({
       where: { follower: { id: userId } },
       relations: ['following'],
     });
+    const followingIds = following.map(f => f.following.id);
 
-    const followingIds = follows.map(f => f.following.id);
+    // ✅ lấy followers
+    const followers = await this.followRepo.find({
+      where: { following: { id: userId } },
+      relations: ['follower'],
+    });
+    const followerIds = followers.map(f => f.follower.id);
 
-    let posts: Post[] = [];
+    // ✅ mutual
+    const mutualIds = followingIds.filter(id =>
+      followerIds.includes(id),
+    );
 
-    if (followingIds.length > 0) {
-      posts = await this.repo.find({
-        where: {
-          authorId: In(followingIds),
-          createdAt: MoreThan(oneWeekAgo),
-        },
-        relations: ['author'],
-        order: { createdAt: 'DESC' },
-        take: 50,
-      });
-    }
+    // -------- NHÓM 1 --------
+    const group1 = mutualIds.length
+      ? await this.repo.find({
+          where: {
+            authorId: In(mutualIds),
+            createdAt: MoreThan(oneWeekAgo),
+          },
+          relations: ['author'],
+          order: { interactionScore: 'DESC' },
+        })
+      : [];
 
+    // -------- NHÓM 2 --------
+    const group2 = followingIds.length
+      ? await this.repo.find({
+          where: {
+            authorId: In(followingIds),
+            createdAt: MoreThan(oneWeekAgo),
+          },
+          relations: ['author'],
+          order: { interactionScore: 'DESC' },
+        })
+      : [];
+
+    // -------- NHÓM 3 --------
+    const excludeIds = [
+      ...group1.map(p => p.id),
+      ...group2.map(p => p.id),
+    ];
+
+    const group3 = await this.repo
+      .createQueryBuilder('post')
+      .leftJoinAndSelect('post.author', 'author')
+      .where('post.createdAt > :date', { date: oneWeekAgo })
+      .andWhere(
+        excludeIds.length
+          ? 'post.id NOT IN (:...ids)'
+          : '1=1',
+        { ids: excludeIds },
+      )
+      .orderBy('post.interactionScore', 'DESC')
+      .getMany();
+
+    // -------- MERGE --------
+    let posts = [...group1, ...group2, ...group3];
+
+    // ✅ remove duplicate
+    const uniqueMap = new Map();
+    posts.forEach(p => {
+      if (!uniqueMap.has(p.id)) {
+        uniqueMap.set(p.id, p);
+      }
+    });
+
+    posts = Array.from(uniqueMap.values()).slice(0, 50);
+
+    // ✅ reaction summary
     const reactions = await this.reactionRepo.find({
       where: { post: { id: In(posts.map(p => p.id)) } },
       relations: ['post', 'user'],
@@ -230,3 +285,4 @@ export class PostsService {
     return this.attachSummary(posts, reactions, userId);
   }
 }
+``

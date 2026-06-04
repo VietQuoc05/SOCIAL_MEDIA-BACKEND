@@ -5,10 +5,10 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 
-@ApiTags('Auth') // ✅ group trong Swagger
+@ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private service: AuthService) {}
+  constructor(private readonly service: AuthService) {}
 
   // ✅ REGISTER
   @Post('register')
@@ -21,7 +21,10 @@ export class AuthController {
   // ✅ LOGIN
   @Post('login')
   @ApiOperation({ summary: 'User login' })
-  @ApiResponse({ status: 200, description: 'Login successful, return JWT token' })
+  @ApiResponse({
+    status: 200,
+    description: 'Login successful, return JWT token',
+  })
   login(@Body() dto: LoginDto) {
     return this.service.login(dto);
   }

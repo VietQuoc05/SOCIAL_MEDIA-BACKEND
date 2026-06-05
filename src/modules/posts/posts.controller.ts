@@ -21,6 +21,7 @@ import {
   ApiOperation,
   ApiConsumes,
   ApiBody,
+  ApiParam,
 } from '@nestjs/swagger';
 
 import { FilesInterceptor } from '@nestjs/platform-express';
@@ -35,20 +36,14 @@ export class PostsController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Create a new post' })
   @ApiBody({
     schema: {
       type: 'object',
       properties: {
-        caption: {
-          type: 'string',
-        },
+        caption: { type: 'string' },
         images: {
           type: 'array',
-          items: {
-            type: 'string',
-            format: 'binary',
-          },
+          items: { type: 'string', format: 'binary' },
         },
       },
     },
@@ -60,12 +55,22 @@ export class PostsController {
     @UploadedFiles() files,
     @Body() dto: any,
   ) {
-    const images = files?.map(file => file.filename) || [];
+    const images = files?.map(f => f.filename) || [];
 
-    return this.service.create(user.id, {
-      ...dto,
-      images,
-    });
+    return this.service.create(user.id, { ...dto, images });
+  }
+
+  // ✅ GET POST DETAIL 🔥
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get post detail' })
+  @ApiParam({ name: 'id' })
+  @Get(':id')
+  findById(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.service.findById(id, user?.id);
   }
 
   @UseGuards(JwtAuthGuard)

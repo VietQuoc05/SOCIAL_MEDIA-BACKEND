@@ -51,6 +51,29 @@ export class PostsService {
   }
 
   // ============================
+  // ✅ GET POST DETAIL 🔥
+  // ============================
+  async findById(postId: string, userId?: string) {
+    const post = await this.repo.findOne({
+      where: { id: postId },
+      relations: ['author'],
+    });
+
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
+    const reactions = await this.reactionRepo.find({
+      where: { post: { id: postId } },
+      relations: ['post', 'user'],
+    });
+
+    const [data] = this.attachSummary([post], reactions, userId);
+
+    return data;
+  }
+
+  // ============================
   // ✅ UPDATE POST
   // ============================
   async update(postId: string, userId: string, dto: any) {
@@ -148,7 +171,6 @@ export class PostsService {
 
     reactions.forEach(r => {
       const postId = r.post.id;
-
       if (!map[postId]) map[postId] = [];
       map[postId].push(r);
     });
@@ -195,32 +217,28 @@ export class PostsService {
   }
 
   // ============================
-  // ✅ FEED 3 NHÓM (FINAL 🔥)
+  // ✅ FEED (GIỮ NGUYÊN)
   // ============================
   async getFeed(userId: string) {
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-    // ✅ lấy following
     const following = await this.followRepo.find({
       where: { follower: { id: userId } },
       relations: ['following'],
     });
     const followingIds = following.map(f => f.following.id);
 
-    // ✅ lấy followers
     const followers = await this.followRepo.find({
       where: { following: { id: userId } },
       relations: ['follower'],
     });
     const followerIds = followers.map(f => f.follower.id);
 
-    // ✅ mutual
     const mutualIds = followingIds.filter(id =>
       followerIds.includes(id),
     );
 
-    // -------- NHÓM 1 --------
     const group1 = mutualIds.length
       ? await this.repo.find({
           where: {
@@ -232,7 +250,6 @@ export class PostsService {
         })
       : [];
 
-    // -------- NHÓM 2 --------
     const group2 = followingIds.length
       ? await this.repo.find({
           where: {
@@ -244,7 +261,6 @@ export class PostsService {
         })
       : [];
 
-    // -------- NHÓM 3 --------
     const excludeIds = [
       ...group1.map(p => p.id),
       ...group2.map(p => p.id),
@@ -263,10 +279,8 @@ export class PostsService {
       .orderBy('post.interactionScore', 'DESC')
       .getMany();
 
-    // -------- MERGE --------
     let posts = [...group1, ...group2, ...group3];
 
-    // ✅ remove duplicate
     const uniqueMap = new Map();
     posts.forEach(p => {
       if (!uniqueMap.has(p.id)) {
@@ -276,7 +290,6 @@ export class PostsService {
 
     posts = Array.from(uniqueMap.values()).slice(0, 50);
 
-    // ✅ reaction summary
     const reactions = await this.reactionRepo.find({
       where: { post: { id: In(posts.map(p => p.id)) } },
       relations: ['post', 'user'],

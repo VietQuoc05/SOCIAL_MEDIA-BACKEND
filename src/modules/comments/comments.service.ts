@@ -19,17 +19,10 @@ export class CommentsService {
     private postRepo: Repository<Post>,
   ) {}
 
-  // ============================
-  // ✅ CREATE COMMENT / REPLY (+1)
-  // ============================
+  // ✅ CREATE (+1)
   async create(userId: string, postId: string, dto: any) {
-    const post = await this.postRepo.findOne({
-      where: { id: postId },
-    });
-
-    if (!post) {
-      throw new NotFoundException('Post not found');
-    }
+    const post = await this.postRepo.findOne({ where: { id: postId } });
+    if (!post) throw new NotFoundException('Post not found');
 
     const comment = this.repo.create({
       author: { id: userId },
@@ -39,28 +32,43 @@ export class CommentsService {
       parent: dto.parentId ? { id: dto.parentId } : null,
     });
 
-    // ✅ comment hoặc reply đều +1
-    await this.postRepo.increment(
-      { id: postId },
-      'interactionScore',
-      1,
-    );
+    await this.postRepo.increment({ id: postId }, 'interactionScore', 1);
 
     return this.repo.save(comment);
   }
 
-  // ============================
-  // ✅ DELETE COMMENT / REPLY (-1)
-  // ============================
+  // ✅ UPDATE COMMENT
+  async update(userId: string, commentId: string, dto: any) {
+    const comment = await this.repo.findOne({
+      where: { id: commentId },
+      relations: ['author'],
+    });
+
+    if (!comment) throw new NotFoundException('Comment not found');
+
+    if (comment.author.id !== userId) {
+      throw new ForbiddenException('No permission');
+    }
+
+    if (dto.content !== undefined) {
+      comment.content = dto.content;
+    }
+
+    if (dto.image !== undefined) {
+      comment.image = dto.image;
+    }
+
+    return this.repo.save(comment);
+  }
+
+  // ✅ DELETE (-1)
   async delete(userId: string, commentId: string, postId: string) {
     const comment = await this.repo.findOne({
       where: { id: commentId },
       relations: ['author', 'post', 'post.author'],
     });
 
-    if (!comment) {
-      throw new NotFoundException('Comment not found');
-    }
+    if (!comment) throw new NotFoundException('Comment not found');
 
     if (
       comment.author.id !== userId &&
@@ -71,26 +79,18 @@ export class CommentsService {
 
     await this.repo.delete(commentId);
 
-    // ✅ giảm score
-    await this.postRepo.decrement(
-      { id: postId },
-      'interactionScore',
-      1,
-    );
+    await this.postRepo.decrement({ id: postId }, 'interactionScore', 1);
 
     return { message: 'Comment deleted' };
   }
 
-  // ============================
   // ✅ BUILD REACTION SUMMARY
-  // ============================
   private buildReactionSummary(reactions: any[], userId?: string) {
     const counts: Record<string, number> = {};
     let myReaction: string | null = null;
 
     reactions.forEach(r => {
       counts[r.type] = (counts[r.type] || 0) + 1;
-
       if (userId && r.user?.id === userId) {
         myReaction = r.type;
       }
@@ -106,17 +106,10 @@ export class CommentsService {
       .slice(0, 3)
       .map(([type]) => type);
 
-    return {
-      reactions: counts,
-      totalReactions,
-      topReactions,
-      myReaction,
-    };
+    return { reactions: counts, totalReactions, topReactions, myReaction };
   }
 
-  // ============================
   // ✅ GET COMMENTS TREE
-  // ============================
   async getByPost(postId: string, userId?: string) {
     const comments = await this.repo
       .createQueryBuilder('comment')
@@ -130,10 +123,7 @@ export class CommentsService {
     const map = new Map();
 
     comments.forEach(c => {
-      const summary = this.buildReactionSummary(
-        c.reactions || [],
-        userId,
-      );
+      const summary = this.buildReactionSummary(c.reactions || [], userId);
 
       map.set(c.id, {
         id: c.id,
@@ -147,7 +137,7 @@ export class CommentsService {
       });
     });
 
-    const tree = [];
+    const tree: any[] = [];
 
     map.forEach(comment => {
       if (comment.parentId) {
@@ -158,18 +148,7 @@ export class CommentsService {
       }
     });
 
-    // ✅ sort theo reaction (hot)
-    const getScore = (c: any) => c.totalReactions || 0;
-
-    tree.sort((a, b) => getScore(b) - getScore(a));
-
-    tree.forEach(c => {
-      c.replies.sort(
-        (a, b) =>
-          new Date(a.createdAt).getTime() -
-          new Date(b.createdAt).getTime(),
-      );
-    });
+    tree.sort((a, b) => b.totalReactions - a.totalReactions);
 
     return tree;
   }

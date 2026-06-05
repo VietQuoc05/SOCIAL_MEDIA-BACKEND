@@ -1,6 +1,7 @@
-import {
-  Injectable,
-  BadRequestException,
+import {BadRequestException,
+  NotFoundException,
+  ForbiddenException,
+  Injectable
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -24,7 +25,7 @@ export class ReactionsService {
   ) {}
 
   // ============================
-  // ✅ REACT POST (±2)
+  // ✅ REACT POST (+2)
   // ============================
   async reactPost(userId: string, postId: string, type: string) {
     const reactionType = type as ReactionType;
@@ -40,13 +41,13 @@ export class ReactionsService {
       },
     });
 
-    // ✅ nếu đã có → chỉ update type, KHÔNG tăng score
+    // ✅ nếu đã có → chỉ update type
     if (existing) {
       existing.type = reactionType;
       return this.repo.save(existing);
     }
 
-    // ✅ new reaction → +2
+    // ✅ new → +2 score
     await this.postRepo.increment(
       { id: postId },
       'interactionScore',
@@ -83,7 +84,7 @@ export class ReactionsService {
   }
 
   // ============================
-  // ✅ REACT COMMENT (±2)
+  // ✅ REACT COMMENT (+2)
   // ============================
   async reactComment(
     userId: string,
@@ -103,13 +104,13 @@ export class ReactionsService {
       },
     });
 
-    // ✅ update only
+    // ✅ nếu đã có → chỉ update
     if (existing) {
       existing.type = reactionType;
       return this.repo.save(existing);
     }
 
-    // ✅ new → +2
+    // ✅ new → +2 score
     await this.commentRepo.increment(
       { id: commentId },
       'interactionScore',
@@ -147,4 +148,38 @@ export class ReactionsService {
 
     return { message: 'Reaction removed' };
   }
+
+  // ============================
+  // ✅ UPDATE REACTION (NO SCORE CHANGE)
+  // ============================
+  async updateReaction(
+    userId: string,
+    reactionId: string,
+    type: string,
+  ) {
+    const reactionType = type as ReactionType;
+
+    if (!Object.values(ReactionType).includes(reactionType)) {
+      throw new BadRequestException('Invalid reaction type');
+    }
+
+    const reaction = await this.repo.findOne({
+      where: { id: reactionId },
+      relations: ['user'],
+    });
+
+    if (!reaction) {
+      throw new NotFoundException('Reaction not found');
+    }
+
+    if (reaction.user.id !== userId) {
+      throw new ForbiddenException('No permission');
+    }
+
+    // ✅ ONLY update type — không đổi score
+    reaction.type = reactionType;
+
+    return this.repo.save(reaction);
+  }
 }
+

@@ -6,6 +6,7 @@ import {
   Param,
   UseGuards,
   Get,
+  Patch,
   UseInterceptors,
   UploadedFile,
 } from '@nestjs/common';
@@ -32,23 +33,14 @@ import { multerConfig } from '../../config/upload.config';
 export class CommentsController {
   constructor(private readonly service: CommentsService) {}
 
-  // ✅ CREATE COMMENT
-  @ApiOperation({ summary: 'Create a comment' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
       type: 'object',
       properties: {
-        content: {
-          type: 'string',
-        },
-        image: {
-          type: 'string',
-          format: 'binary',
-        },
-        parentId: {
-          type: 'string',
-        },
+        content: { type: 'string' },
+        image: { type: 'string', format: 'binary' },
+        parentId: { type: 'string' },
       },
     },
   })
@@ -61,14 +53,22 @@ export class CommentsController {
     @Body() dto: any,
   ) {
     const image = file?.filename;
-
     return this.service.create(user.id, postId, {
       ...dto,
       ...(image && { image }),
     });
   }
 
-  @ApiOperation({ summary: 'Delete comment' })
+  // ✅ UPDATE COMMENT
+  @Patch(':id')
+  update(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+    @Body() dto: any,
+  ) {
+    return this.service.update(user.id, id, dto);
+  }
+
   @Delete(':id/:postId')
   delete(
     @Param('id') id: string,
@@ -78,7 +78,6 @@ export class CommentsController {
     return this.service.delete(user.id, id, postId);
   }
 
-  @ApiOperation({ summary: 'Get comments' })
   @Get('post/:postId')
   getByPost(@Param('postId') postId: string) {
     return this.service.getByPost(postId);

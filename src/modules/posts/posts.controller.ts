@@ -9,6 +9,7 @@ import {
   UseGuards,
   UseInterceptors,
   UploadedFiles,
+  UnauthorizedException,
 } from '@nestjs/common';
 
 import { PostsService } from './posts.service';
@@ -32,7 +33,9 @@ import { multerConfig } from '../../config/upload.config';
 export class PostsController {
   constructor(private readonly service: PostsService) {}
 
+  // ============================
   // ✅ CREATE POST
+  // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiConsumes('multipart/form-data')
@@ -55,12 +58,15 @@ export class PostsController {
     @UploadedFiles() files,
     @Body() dto: any,
   ) {
-    const images = files?.map(f => f.filename) || [];
+    if (!user) throw new UnauthorizedException();
 
+    const images = files?.map(f => f.filename) || [];
     return this.service.create(user.id, { ...dto, images });
   }
 
-  // ✅ GET POST DETAIL 🔥
+  // ============================
+  // ✅ GET POST DETAIL
+  // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get post detail' })
@@ -70,48 +76,96 @@ export class PostsController {
     @Param('id') id: string,
     @CurrentUser() user: any,
   ) {
-    return this.service.findById(id, user?.id);
+    if (!user) throw new UnauthorizedException();
+
+    return this.service.findById(id, user.id);
   }
 
+  // ============================
+  // ✅ UPDATE POST
+  // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Patch(':id')
-  update(@Param('id') id: string, @CurrentUser() user: any, @Body() dto: any) {
+  update(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+    @Body() dto: any,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
     return this.service.update(id, user.id, dto);
   }
 
+  // ============================
+  // ✅ DELETE POST
+  // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Delete(':id')
-  delete(@Param('id') id: string, @CurrentUser() user: any) {
+  delete(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
     return this.service.delete(id, user.id);
   }
 
+  // ============================
+  // ✅ GET ALL POSTS
+  // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Get()
   findAll(@CurrentUser() user: any) {
+    if (!user) throw new UnauthorizedException();
+
     return this.service.findAll(user.id);
   }
 
+  // ============================
+  // ✅ GET MY POSTS
+  // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Get('me')
   getMyPosts(@CurrentUser() user: any) {
+    if (!user) throw new UnauthorizedException();
+
     return this.service.findByUser(user.id, user.id);
   }
 
+  // ============================
+  // ✅ GET POSTS BY USER
+  // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Get('user/:id')
-  findByUser(@Param('id') id: string, @CurrentUser() user: any) {
+  findByUser(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
     return this.service.findByUser(id, user.id);
   }
 
+  // ============================
+  // ✅ FEED 🔥 (FIX 500 HERE)
+  // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get user feed' })
   @Get('feed')
   feed(@CurrentUser() user: any) {
+    if (!user) {
+      throw new UnauthorizedException(
+        'Missing or invalid token',
+      );
+    }
+
     return this.service.getFeed(user.id);
   }
 }
+``

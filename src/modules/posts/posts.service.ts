@@ -273,4 +273,40 @@ export class PostsService {
 
     return this.attachSummary(posts, reactions, userId);
   }
+  async findAll(userId?: string) {
+  const posts = await this.repo.find({
+    relations: ['author'],
+    order: { createdAt: 'DESC' },
+  });
+
+  let reactions: Reaction[] = [];
+
+  if (posts.length > 0) {
+    reactions = await this.reactionRepo.find({
+      where: { post: { id: In(posts.map(p => p.id)) } },
+      relations: ['post', 'user'],
+    });
+  }
+
+  return this.attachSummary(posts, reactions, userId);
+}
+async findByUser(userId: string, currentUserId?: string) {
+  const posts = await this.repo.find({
+    where: { authorId: userId },
+    relations: ['author'],
+    order: { createdAt: 'DESC' },
+  });
+
+  let reactions: Reaction[] = [];
+
+  if (posts.length > 0) {
+    reactions = await this.reactionRepo.find({
+      where: { post: { id: In(posts.map(p => p.id)) } },
+      relations: ['post', 'user'],
+    });
+  }
+
+  return this.attachSummary(posts, reactions, currentUserId);
+}
+
 }

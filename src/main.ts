@@ -48,6 +48,14 @@ async function bootstrap() {
     })
     .build();
 
+    
+app.useGlobalFilters({
+  catch(exception: any, host: any) {
+    console.error('🔥 ERROR:', exception);
+    throw exception;
+  },
+} as any);
+
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
 

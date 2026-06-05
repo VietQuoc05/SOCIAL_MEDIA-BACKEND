@@ -7,6 +7,8 @@ import {
   Param,
   Body,
   UseGuards,
+  UseInterceptors,
+  UploadedFiles,
 } from '@nestjs/common';
 
 import { PostsService } from './posts.service';
@@ -17,94 +19,92 @@ import {
   ApiTags,
   ApiBearerAuth,
   ApiOperation,
+  ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
 
-import { CreatePostDto } from './dto/create-post.dto';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { multerConfig } from '../../config/upload.config';
 
 @ApiTags('Posts')
 @Controller('posts')
 export class PostsController {
   constructor(private readonly service: PostsService) {}
 
-  // ============================
   // ✅ CREATE POST
-  // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Create a new post' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        caption: {
+          type: 'string',
+        },
+        images: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+        },
+      },
+    },
+  })
   @HttpPost()
-  create(@CurrentUser() user: any, @Body() dto: CreatePostDto) {
-    return this.service.create(user.id, dto);
+  @UseInterceptors(FilesInterceptor('images', 10, multerConfig))
+  create(
+    @CurrentUser() user: any,
+    @UploadedFiles() files,
+    @Body() dto: any,
+  ) {
+    const images = files?.map(file => file.filename) || [];
+
+    return this.service.create(user.id, {
+      ...dto,
+      images,
+    });
   }
 
-  // ============================
-  // ✅ UPDATE POST
-  // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update a post' })
   @Patch(':id')
-  update(
-    @Param('id') id: string,
-    @CurrentUser() user: any,
-    @Body() dto: CreatePostDto,
-  ) {
+  update(@Param('id') id: string, @CurrentUser() user: any, @Body() dto: any) {
     return this.service.update(id, user.id, dto);
   }
 
-  // ============================
-  // ✅ DELETE POST
-  // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Delete a post' })
   @Delete(':id')
   delete(@Param('id') id: string, @CurrentUser() user: any) {
     return this.service.delete(id, user.id);
   }
 
-  // ============================
-  // ✅ GET ALL POSTS (PUBLIC)
-  // ============================
-  @UseGuards(JwtAuthGuard) // ✅ thêm guard để có user
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get all posts' })
   @Get()
   findAll(@CurrentUser() user: any) {
-    return this.service.findAll(user.id); // ✅ FIX
+    return this.service.findAll(user.id);
   }
 
-  // ============================
-  // ✅ GET MY POSTS ✅ FIX QUAN TRỌNG
-  // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get my posts' })
   @Get('me')
   getMyPosts(@CurrentUser() user: any) {
-    return this.service.findByUser(user.id, user.id); // ✅ FIX
+    return this.service.findByUser(user.id, user.id);
   }
 
-  // ============================
-  // ✅ GET POSTS BY USER
-  // ============================
-  @UseGuards(JwtAuthGuard) // ✅ để có myReaction
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get posts by user' })
-  @Get('user/:id')
-  findByUser(
-    @Param('id') id: string,
-    @CurrentUser() user: any,
-  ) {
-    return this.service.findByUser(id, user.id); // ✅ FIX
-  }
-
-  // ============================
-  // ✅ FEED
-  // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get user feed' })
+  @Get('user/:id')
+  findByUser(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.findByUser(id, user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @Get('feed')
   feed(@CurrentUser() user: any) {
     return this.service.getFeed(user.id);

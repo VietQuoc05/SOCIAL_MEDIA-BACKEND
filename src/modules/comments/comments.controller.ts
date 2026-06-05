@@ -6,19 +6,24 @@ import {
   Param,
   UseGuards,
   Get,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
 
 import { CommentsService } from './comments.service';
 import { JwtAuthGuard } from '../../common/guards/jwt.guard';
 import { CurrentUser } from '../../common/decorators/user.decorator';
 
-import { CreateCommentDto } from './dto/create-comment.dto';
-
 import {
   ApiTags,
   ApiBearerAuth,
   ApiOperation,
+  ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
+
+import { FileInterceptor } from '@nestjs/platform-express';
+import { multerConfig } from '../../config/upload.config';
 
 @ApiTags('Comments')
 @UseGuards(JwtAuthGuard)
@@ -27,19 +32,43 @@ import {
 export class CommentsController {
   constructor(private readonly service: CommentsService) {}
 
-  // ✅ CREATE
+  // ✅ CREATE COMMENT
   @ApiOperation({ summary: 'Create a comment' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        content: {
+          type: 'string',
+        },
+        image: {
+          type: 'string',
+          format: 'binary',
+        },
+        parentId: {
+          type: 'string',
+        },
+      },
+    },
+  })
   @Post(':postId')
+  @UseInterceptors(FileInterceptor('image', multerConfig))
   create(
     @Param('postId') postId: string,
     @CurrentUser() user: any,
-    @Body() dto: CreateCommentDto,
+    @UploadedFile() file,
+    @Body() dto: any,
   ) {
-    return this.service.create(user.id, postId, dto);
+    const image = file?.filename;
+
+    return this.service.create(user.id, postId, {
+      ...dto,
+      ...(image && { image }),
+    });
   }
 
-  // ✅ DELETE
-  @ApiOperation({ summary: 'Delete comment (author or post owner)' })
+  @ApiOperation({ summary: 'Delete comment' })
   @Delete(':id/:postId')
   delete(
     @Param('id') id: string,
@@ -49,11 +78,9 @@ export class CommentsController {
     return this.service.delete(user.id, id, postId);
   }
 
-  // ✅ GET TREE + HOT
-  @ApiOperation({ summary: 'Get comments (tree + hot sorting)' })
+  @ApiOperation({ summary: 'Get comments' })
   @Get('post/:postId')
   getByPost(@Param('postId') postId: string) {
     return this.service.getByPost(postId);
   }
 }
-``

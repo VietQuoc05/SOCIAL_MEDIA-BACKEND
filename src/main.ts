@@ -4,22 +4,39 @@ import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
 
+import { join } from 'path';
+import * as express from 'express';
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // ✅ Enable CORS
+  // ============================
+  // ✅ ENABLE CORS
+  // ============================
   app.enableCors();
 
-  // ✅ Enable validation (QUAN TRỌNG)
+  // ============================
+  // ✅ VALIDATION PIPE
+  // ============================
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true, // bỏ field thừa
-      forbidNonWhitelisted: true, // chặn field lạ
+      whitelist: true,
+      forbidNonWhitelisted: true,
       transform: true,
     }),
   );
 
-  // ✅ Swagger config
+  // ============================
+  // ✅ SERVE STATIC FILE (UPLOADS) 🔥
+  // ============================
+  app.use(
+    '/uploads',
+    express.static(join(__dirname, '..', 'uploads')),
+  );
+
+  // ============================
+  // ✅ SWAGGER
+  // ============================
   const config = new DocumentBuilder()
     .setTitle('Social API')
     .setDescription('API for social media backend')
@@ -32,9 +49,11 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-
   SwaggerModule.setup('api', app, document);
 
+  // ============================
+  // ✅ START SERVER
+  // ============================
   await app.listen(3000);
 
   console.log(`✅ Server running on: http://localhost:3000`);
@@ -42,4 +61,3 @@ async function bootstrap() {
 }
 
 bootstrap();
-``

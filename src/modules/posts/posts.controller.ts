@@ -65,7 +65,61 @@ export class PostsController {
   }
 
   // ============================
-  // ✅ GET POST DETAIL
+  // ✅ FEED 🔥 (ĐẶT TRƯỚC)
+  // ============================
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get user feed' })
+  @Get('feed')
+  feed(@CurrentUser() user: any) {
+    if (!user) {
+      throw new UnauthorizedException('Missing or invalid token');
+    }
+
+    return this.service.getFeed(user.id);
+  }
+
+  // ============================
+  // ✅ GET MY POSTS
+  // ============================
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Get('me')
+  getMyPosts(@CurrentUser() user: any) {
+    if (!user) throw new UnauthorizedException();
+
+    return this.service.findByUser(user.id, user.id);
+  }
+
+  // ============================
+  // ✅ GET POSTS BY USER
+  // ============================
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Get('user/:id')
+  findByUser(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    return this.service.findByUser(id, user.id);
+  }
+
+  // ============================
+  // ✅ GET ALL POSTS
+  // ============================
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Get()
+  findAll(@CurrentUser() user: any) {
+    if (!user) throw new UnauthorizedException();
+
+    return this.service.findAll(user.id);
+  }
+
+  // ============================
+  // ✅ GET POST DETAIL ✅ (ĐỂ CUỐI)
   // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -111,61 +165,4 @@ export class PostsController {
 
     return this.service.delete(id, user.id);
   }
-
-  // ============================
-  // ✅ GET ALL POSTS
-  // ============================
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @Get()
-  findAll(@CurrentUser() user: any) {
-    if (!user) throw new UnauthorizedException();
-
-    return this.service.findAll(user.id);
-  }
-
-  // ============================
-  // ✅ GET MY POSTS
-  // ============================
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @Get('me')
-  getMyPosts(@CurrentUser() user: any) {
-    if (!user) throw new UnauthorizedException();
-
-    return this.service.findByUser(user.id, user.id);
-  }
-
-  // ============================
-  // ✅ GET POSTS BY USER
-  // ============================
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @Get('user/:id')
-  findByUser(
-    @Param('id') id: string,
-    @CurrentUser() user: any,
-  ) {
-    if (!user) throw new UnauthorizedException();
-
-    return this.service.findByUser(id, user.id);
-  }
-
-  // ============================
-  // ✅ FEED 🔥 (FIX 500 HERE)
-  // ============================
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get user feed' })
-  @Get('feed')
-  feed(@CurrentUser() user: any) {
-    if (!user) {
-      throw new UnauthorizedException(
-        'Missing or invalid token',
-      );
-    }
-
-    return this.service.getFeed(user.id);
-  }
 }
-``

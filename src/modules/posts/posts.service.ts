@@ -69,7 +69,6 @@ export class PostsService {
     });
 
     const [data] = this.attachSummary([post], reactions, userId);
-
     return data;
   }
 
@@ -160,7 +159,7 @@ export class PostsService {
   }
 
   // ============================
-  // ✅ ATTACH SUMMARY
+  // ✅ ATTACH SUMMARY (SAFE)
   // ============================
   private attachSummary(
     posts: Post[],
@@ -170,7 +169,9 @@ export class PostsService {
     const map: Record<string, Reaction[]> = {};
 
     reactions.forEach(r => {
-      const postId = r.post.id;
+      const postId = r.post?.id;
+      if (!postId) return;
+
       if (!map[postId]) map[postId] = [];
       map[postId].push(r);
     });
@@ -182,68 +183,22 @@ export class PostsService {
   }
 
   // ============================
-  // ✅ FIND ALL
-  // ============================
-  async findAll(userId?: string) {
-    const posts = await this.repo.find({
-      relations: ['author'],
-      order: { createdAt: 'DESC' },
-    });
-
-    let reactions: Reaction[] = [];
-
-    if (posts.length > 0) {
-      reactions = await this.reactionRepo.find({
-        where: { post: { id: In(posts.map(p => p.id)) } },
-        relations: ['post', 'user'],
-      });
-    }
-
-    return this.attachSummary(posts, reactions, userId);
-  }
-
-  // ============================
-  // ✅ FIND BY USER
-  // ============================
-  async findByUser(userId: string, currentUserId?: string) {
-    const posts = await this.repo.find({
-      where: { authorId: userId },
-      relations: ['author'],
-      order: { createdAt: 'DESC' },
-    });
-
-    let reactions: Reaction[] = [];
-
-    if (posts.length > 0) {
-      reactions = await this.reactionRepo.find({
-        where: { post: { id: In(posts.map(p => p.id)) } },
-        relations: ['post', 'user'],
-      });
-    }
-
-    return this.attachSummary(posts, reactions, currentUserId);
-  }
-
-  // ============================
-  // ✅ FEED 🔥 FIXED
+  // ✅ FEED — FIX TRIỆT ĐỂ 🔥
   // ============================
   async getFeed(userId: string) {
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-    // ✅ following
+    // ✅ NO JOIN — dùng ID trực tiếp
     const following = await this.followRepo.find({
-      where: { follower: { id: userId } },
-      relations: ['following'],
+      where: { followerId: userId },
     });
-    const followingIds = following.map(f => f.following.id);
+    const followingIds = following.map(f => f.followingId);
 
-    // ✅ followers
     const followers = await this.followRepo.find({
-      where: { following: { id: userId } },
-      relations: ['follower'],
+      where: { followingId: userId },
     });
-    const followerIds = followers.map(f => f.follower.id);
+    const followerIds = followers.map(f => f.followerId);
 
     const mutualIds = followingIds.filter(id =>
       followerIds.includes(id),
@@ -258,6 +213,7 @@ export class PostsService {
           },
           relations: ['author'],
           order: { interactionScore: 'DESC' },
+          take: 20,
         })
       : [];
 
@@ -270,12 +226,13 @@ export class PostsService {
           },
           relations: ['author'],
           order: { interactionScore: 'DESC' },
+          take: 20,
         })
       : [];
 
-    const excludeIds = [...group1.map(p => p.id), ...group2.map(p => p.id)];
+    const excludeIds = [...group1, ...group2].map(p => p.id);
 
-    // ✅ GROUP 3 (FIX NOT IN)
+    // ✅ GROUP 3 (SAFE QUERY)
     const qb = this.repo
       .createQueryBuilder('post')
       .leftJoinAndSelect('post.author', 'author')
@@ -287,26 +244,29 @@ export class PostsService {
 
     const group3 = await qb
       .orderBy('post.interactionScore', 'DESC')
+      .limit(20)
       .getMany();
 
     let posts = [...group1, ...group2, ...group3];
 
-    // ✅ deduplicate
-    const uniqueMap = new Map();
+    // ✅ REMOVE DUP
+    const unique = new Map();
     posts.forEach(p => {
-      if (!uniqueMap.has(p.id)) {
-        uniqueMap.set(p.id, p);
+      if (!unique.has(p.id)) {
+        unique.set(p.id, p);
       }
     });
 
-    posts = Array.from(uniqueMap.values()).slice(0, 50);
+    posts = Array.from(unique.values());
 
-    // ✅ FIX In([])
+    // ✅ SAFE REACTION QUERY
     let reactions: Reaction[] = [];
 
     if (posts.length > 0) {
       reactions = await this.reactionRepo.find({
-        where: { post: { id: In(posts.map(p => p.id)) } },
+        where: {
+          post: { id: In(posts.map(p => p.id)) },
+        },
         relations: ['post', 'user'],
       });
     }

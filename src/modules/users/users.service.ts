@@ -1,10 +1,11 @@
 import {
   Injectable,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike, In } from 'typeorm';
+import { Repository, ILike } from 'typeorm';
 
 import { User } from '../../database/entities/user.entity';
 import { Follow } from '../../database/entities/follow.entity';
@@ -36,136 +37,170 @@ export class UsersService {
   // ============================
   async findByEmail(email: string) {
     return this.repo.findOne({
-      where: {
-        email,
-        isDeleted: false,
-      },
+      where: { email, isDeleted: false },
       select: ['id', 'email', 'password', 'username'],
     });
   }
 
   // ============================
-  // ✅ BUILD USER STATS (OPTIMIZED 🔥)
+  // ✅ STATS
   // ============================
-  private async buildUserStats(
-    targetUserId: string,
-    currentUserId?: string,
-  ) {
-    // ✅ đếm nhanh bằng count (không lấy full list)
-    const followersCount = await this.followRepo.count({
-      where: { following: { id: targetUserId } },
-    });
-
-    const followingCount = await this.followRepo.count({
-      where: { follower: { id: targetUserId } },
-    });
-
-    const postsCount = await this.postRepo.count({
-      where: { authorId: targetUserId },
-    });
-
-    // ✅ mutual friends (chỉ tính khi khác user)
-    let mutualFriendCount = 0;
-
-    if (currentUserId && currentUserId !== targetUserId) {
-      const myFollowing = await this.followRepo.find({
-        where: { follower: { id: currentUserId } },
-        relations: ['following'],
-      });
-
-      const targetFollowers = await this.followRepo.find({
-        where: { following: { id: targetUserId } },
-        relations: ['follower'],
-      });
-
-      const myFollowingIds = myFollowing.map(
-        f => f.following.id,
-      );
-
-      const targetFollowerIds = targetFollowers.map(
-        f => f.follower.id,
-      );
-
-      mutualFriendCount = targetFollowerIds.filter(id =>
-        myFollowingIds.includes(id),
-      ).length;
-    }
+  private async buildUserStats(userId: string) {
+    const [followersCount, followingCount, postsCount] =
+      await Promise.all([
+        this.followRepo.count({
+          where: { following: { id: userId } },
+        }),
+        this.followRepo.count({
+          where: { follower: { id: userId } },
+        }),
+        this.postRepo.count({
+          where: { authorId: userId },
+        }),
+      ]);
 
     return {
       followersCount,
       followingCount,
       postsCount,
-      mutualFriendCount,
     };
   }
 
   // ============================
-  // ✅ FIND USER PROFILE (FULL 🔥)
+  // ✅ MUTUAL FRIENDS
+  // ============================
+  private async getMutualCount(
+    currentUserId: string,
+    targetUserId: string,
+  ) {
+    const myFollowing = await this.followRepo.find({
+      where: { follower: { id: currentUserId } },
+      relations: ['following'],
+    });
+
+    const targetFollowers = await this.followRepo.find({
+      where: { following: { id: targetUserId } },
+      relations: ['follower'],
+    });
+
+    const myIds = myFollowing.map(f => f.following.id);
+    const targetIds = targetFollowers.map(f => f.follower.id);
+
+    return targetIds.filter(id => myIds.includes(id)).length;
+  }
+
+  // ============================
+  // ✅ PROFILE
   // ============================
   async findById(id: string, currentUserId?: string) {
     const user = await this.repo.findOne({
-      where: {
-        id,
-        isDeleted: false,
-      },
+      where: { id, isDeleted: false },
     });
 
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
+    if (!user) throw new NotFoundException('User not found');
 
-    // ✅ stats
-    const stats = await this.buildUserStats(
-      id,
-      currentUserId,
-    );
+    const stats = await this.buildUserStats(id);
 
-    // ✅ follow status
+    let mutualFriendCount = 0;
     let followStatus = 'not_follow_yet';
 
     if (currentUserId && currentUserId !== id) {
-      const isFollowing = await this.followRepo.findOne({
-        where: {
-          follower: { id: currentUserId },
-          following: { id },
-        },
-      });
+      const [isFollowing, mutual] = await Promise.all([
+        this.followRepo.findOne({
+          where: {
+            follower: { id: currentUserId },
+            following: { id },
+          },
+        }),
+        this.getMutualCount(currentUserId, id),
+      ]);
 
       followStatus = isFollowing
         ? 'followed'
         : 'not_follow_yet';
+
+      mutualFriendCount = mutual;
     }
 
     return {
       ...user,
       ...stats,
+      mutualFriendCount,
       followStatus,
     };
   }
 
   // ============================
-  // ✅ UPDATE PROFILE
+  // ✅ FOLLOWERS LIST (PRIVACY)
+  // ============================
+  async getFollowers(userId: string, currentUserId?: string) {
+    const user = await this.repo.findOne({
+      where: { id: userId, isDeleted: false },
+    });
+
+    if (!user) throw new NotFoundException('User not found');
+
+    if (!user.isPublicFollowers && currentUserId !== userId) {
+      throw new ForbiddenException(
+        'Followers list is private',
+      );
+    }
+
+    const followers = await this.followRepo.find({
+      where: { following: { id: userId } },
+      relations: ['follower'],
+    });
+
+    return followers.map(f => ({
+      id: f.follower.id,
+      username: f.follower.username,
+      avatar: f.follower.avatar,
+    }));
+  }
+
+  // ============================
+  // ✅ FOLLOWING LIST (PRIVACY)
+  // ============================
+  async getFollowing(userId: string, currentUserId?: string) {
+    const user = await this.repo.findOne({
+      where: { id: userId, isDeleted: false },
+    });
+
+    if (!user) throw new NotFoundException('User not found');
+
+    if (!user.isPublicFollowing && currentUserId !== userId) {
+      throw new ForbiddenException(
+        'Following list is private',
+      );
+    }
+
+    const following = await this.followRepo.find({
+      where: { follower: { id: userId } },
+      relations: ['following'],
+    });
+
+    return following.map(f => ({
+      id: f.following.id,
+      username: f.following.username,
+      avatar: f.following.avatar,
+    }));
+  }
+
+  // ============================
+  // ✅ UPDATE
   // ============================
   async updateProfile(userId: string, dto: any) {
     const user = await this.repo.findOne({
-      where: {
-        id: userId,
-        isDeleted: false,
-      },
+      where: { id: userId, isDeleted: false },
     });
 
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
+    if (!user) throw new NotFoundException('User not found');
 
     Object.assign(user, dto);
 
     return this.repo.save(user);
   }
 
-  // ============================
-  // ✅ GET ALL USERS
-  // ============================
   async findAll() {
     return this.repo.find({
       where: { isDeleted: false },
@@ -173,9 +208,6 @@ export class UsersService {
     });
   }
 
-  // ============================
-  // ✅ SEARCH USER
-  // ============================
   async search(keyword: string) {
     return this.repo.find({
       where: [
@@ -183,26 +215,19 @@ export class UsersService {
         { email: ILike(`%${keyword}%`), isDeleted: false },
       ],
       take: 20,
-      order: { createdAt: 'DESC' },
     });
   }
 
-  // ============================
-  // ✅ SOFT DELETE
-  // ============================
   async softDelete(userId: string) {
     const user = await this.repo.findOne({
       where: { id: userId },
     });
 
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
+    if (!user) throw new NotFoundException();
 
     user.isDeleted = true;
-
     await this.repo.save(user);
 
-    return { message: 'User deleted (soft)' };
+    return { message: 'User deleted' };
   }
 }

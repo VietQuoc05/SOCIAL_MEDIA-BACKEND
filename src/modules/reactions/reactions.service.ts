@@ -1,7 +1,8 @@
-import {BadRequestException,
+import {
+  BadRequestException,
   NotFoundException,
   ForbiddenException,
-  Injectable
+  Injectable,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -10,6 +11,7 @@ import { Reaction } from '../../database/entities/reaction.entity';
 import { Post } from '../../database/entities/post.entity';
 import { Comment } from '../../database/entities/comment.entity';
 import { ReactionType } from '../../common/enums/reaction.enum';
+import { EventsGateway } from '../../events/events.gateway';
 
 @Injectable()
 export class ReactionsService {
@@ -22,10 +24,12 @@ export class ReactionsService {
 
     @InjectRepository(Comment)
     private commentRepo: Repository<Comment>,
+
+    private gateway: EventsGateway, // ✅ realtime
   ) {}
 
   // ============================
-  // ✅ REACT POST (+2)
+  // ✅ REACT POST (+2 + REALTIME)
   // ============================
   async reactPost(userId: string, postId: string, type: string) {
     const reactionType = type as ReactionType;
@@ -35,19 +39,24 @@ export class ReactionsService {
     }
 
     const existing = await this.repo.findOne({
-      where: {
-        user: { id: userId },
-        post: { id: postId },
-      },
+      where: { user: { id: userId }, post: { id: postId } },
     });
 
-    // ✅ nếu đã có → chỉ update type
     if (existing) {
       existing.type = reactionType;
-      return this.repo.save(existing);
+
+      const saved = await this.repo.save(existing);
+
+      // ✅ realtime update
+      this.gateway.emitReactionUpdate({
+        postId,
+        type: saved.type,
+        action: 'updated',
+      });
+
+      return saved;
     }
 
-    // ✅ new → +2 score
     await this.postRepo.increment(
       { id: postId },
       'interactionScore',
@@ -60,11 +69,20 @@ export class ReactionsService {
       type: reactionType,
     });
 
-    return this.repo.save(reaction);
+    const saved = await this.repo.save(reaction);
+
+    // ✅ realtime emit
+    this.gateway.emitReactionUpdate({
+      postId,
+      type: saved.type,
+      action: 'created',
+    });
+
+    return saved;
   }
 
   // ============================
-  // ✅ REMOVE POST REACTION (-2)
+  // ✅ REMOVE POST REACTION (-2 + REALTIME)
   // ============================
   async removePostReaction(userId: string, postId: string) {
     const result = await this.repo.delete({
@@ -78,13 +96,19 @@ export class ReactionsService {
         'interactionScore',
         2,
       );
+
+      // ✅ realtime emit
+      this.gateway.emitReactionUpdate({
+        postId,
+        action: 'removed',
+      });
     }
 
     return { message: 'Reaction removed' };
   }
 
   // ============================
-  // ✅ REACT COMMENT (+2)
+  // ✅ REACT COMMENT (+2 + REALTIME)
   // ============================
   async reactComment(
     userId: string,
@@ -98,19 +122,23 @@ export class ReactionsService {
     }
 
     const existing = await this.repo.findOne({
-      where: {
-        user: { id: userId },
-        comment: { id: commentId },
-      },
+      where: { user: { id: userId }, comment: { id: commentId } },
     });
 
-    // ✅ nếu đã có → chỉ update
     if (existing) {
       existing.type = reactionType;
-      return this.repo.save(existing);
+
+      const saved = await this.repo.save(existing);
+
+      this.gateway.emitReactionUpdate({
+        commentId,
+        type: saved.type,
+        action: 'updated',
+      });
+
+      return saved;
     }
 
-    // ✅ new → +2 score
     await this.commentRepo.increment(
       { id: commentId },
       'interactionScore',
@@ -123,11 +151,19 @@ export class ReactionsService {
       type: reactionType,
     });
 
-    return this.repo.save(reaction);
+    const saved = await this.repo.save(reaction);
+
+    this.gateway.emitReactionUpdate({
+      commentId,
+      type: saved.type,
+      action: 'created',
+    });
+
+    return saved;
   }
 
   // ============================
-  // ✅ REMOVE COMMENT REACTION (-2)
+  // ✅ REMOVE COMMENT REACTION (-2 + REALTIME)
   // ============================
   async removeCommentReaction(
     userId: string,
@@ -144,13 +180,18 @@ export class ReactionsService {
         'interactionScore',
         2,
       );
+
+      this.gateway.emitReactionUpdate({
+        commentId,
+        action: 'removed',
+      });
     }
 
     return { message: 'Reaction removed' };
   }
 
   // ============================
-  // ✅ UPDATE REACTION (NO SCORE CHANGE)
+  // ✅ UPDATE REACTION (NO SCORE + REALTIME)
   // ============================
   async updateReaction(
     userId: string,
@@ -176,10 +217,16 @@ export class ReactionsService {
       throw new ForbiddenException('No permission');
     }
 
-    // ✅ ONLY update type — không đổi score
     reaction.type = reactionType;
 
-    return this.repo.save(reaction);
+    const saved = await this.repo.save(reaction);
+
+    this.gateway.emitReactionUpdate({
+      id: reactionId,
+      type: saved.type,
+      action: 'updated',
+    });
+
+    return saved;
   }
 }
-

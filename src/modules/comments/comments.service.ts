@@ -8,6 +8,7 @@ import { Repository } from 'typeorm';
 
 import { Comment } from '../../database/entities/comment.entity';
 import { Post } from '../../database/entities/post.entity';
+import { EventsGateway } from '../../events/events.gateway';
 
 @Injectable()
 export class CommentsService {
@@ -17,9 +18,13 @@ export class CommentsService {
 
     @InjectRepository(Post)
     private postRepo: Repository<Post>,
+
+    private gateway: EventsGateway, // ✅ inject realtime
   ) {}
 
-  // ✅ CREATE (+1)
+  // ============================
+  // ✅ CREATE COMMENT (+1 + REALTIME)
+  // ============================
   async create(userId: string, postId: string, dto: any) {
     const post = await this.postRepo.findOne({ where: { id: postId } });
     if (!post) throw new NotFoundException('Post not found');
@@ -34,10 +39,17 @@ export class CommentsService {
 
     await this.postRepo.increment({ id: postId }, 'interactionScore', 1);
 
-    return this.repo.save(comment);
+    const saved = await this.repo.save(comment);
+
+    // ✅ REALTIME EMIT
+    this.gateway.emitNewComment(saved);
+
+    return saved;
   }
 
+  // ============================
   // ✅ UPDATE COMMENT
+  // ============================
   async update(userId: string, commentId: string, dto: any) {
     const comment = await this.repo.findOne({
       where: { id: commentId },
@@ -61,7 +73,9 @@ export class CommentsService {
     return this.repo.save(comment);
   }
 
-  // ✅ DELETE (-1)
+  // ============================
+  // ✅ DELETE COMMENT (-1 + REALTIME)
+  // ============================
   async delete(userId: string, commentId: string, postId: string) {
     const comment = await this.repo.findOne({
       where: { id: commentId },
@@ -79,18 +93,32 @@ export class CommentsService {
 
     await this.repo.delete(commentId);
 
-    await this.postRepo.decrement({ id: postId }, 'interactionScore', 1);
+    await this.postRepo.decrement(
+      { id: postId },
+      'interactionScore',
+      1,
+    );
+
+    // ✅ REALTIME EMIT
+    this.gateway.emitNewComment({
+      deleted: true,
+      commentId,
+      postId,
+    });
 
     return { message: 'Comment deleted' };
   }
 
+  // ============================
   // ✅ BUILD REACTION SUMMARY
+  // ============================
   private buildReactionSummary(reactions: any[], userId?: string) {
     const counts: Record<string, number> = {};
     let myReaction: string | null = null;
 
     reactions.forEach(r => {
       counts[r.type] = (counts[r.type] || 0) + 1;
+
       if (userId && r.user?.id === userId) {
         myReaction = r.type;
       }
@@ -106,10 +134,17 @@ export class CommentsService {
       .slice(0, 3)
       .map(([type]) => type);
 
-    return { reactions: counts, totalReactions, topReactions, myReaction };
+    return {
+      reactions: counts,
+      totalReactions,
+      topReactions,
+      myReaction,
+    };
   }
 
+  // ============================
   // ✅ GET COMMENTS TREE
+  // ============================
   async getByPost(postId: string, userId?: string) {
     const comments = await this.repo
       .createQueryBuilder('comment')
@@ -123,7 +158,10 @@ export class CommentsService {
     const map = new Map();
 
     comments.forEach(c => {
-      const summary = this.buildReactionSummary(c.reactions || [], userId);
+      const summary = this.buildReactionSummary(
+        c.reactions || [],
+        userId,
+      );
 
       map.set(c.id, {
         id: c.id,

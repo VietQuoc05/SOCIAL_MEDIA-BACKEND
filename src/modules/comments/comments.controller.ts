@@ -1,8 +1,8 @@
 import {
-  Controller,
-  Post,
-  Delete,
+  Controller,  
+  Delete,  
   Body,
+  Post,
   Param,
   UseGuards,
   Get,
@@ -33,14 +33,18 @@ import { multerConfig } from '../../config/upload.config';
 export class CommentsController {
   constructor(private readonly service: CommentsService) {}
 
+  // ============================
+  // ✅ CREATE COMMENT
+  // ============================
+  @ApiOperation({ summary: 'Create a comment' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
       type: 'object',
       properties: {
-        content: { type: 'string' },
+        content: { type: 'string', example: 'Nice post!' },
         image: { type: 'string', format: 'binary' },
-        parentId: { type: 'string' },
+        parentId: { type: 'string', example: 'reply_id_optional' },
       },
     },
   })
@@ -53,22 +57,53 @@ export class CommentsController {
     @Body() dto: any,
   ) {
     const image = file?.filename;
+
     return this.service.create(user.id, postId, {
       ...dto,
       ...(image && { image }),
     });
   }
 
-  // ✅ UPDATE COMMENT
+  // ============================
+  // ✅ UPDATE COMMENT 🔥
+  // ============================
+  @ApiOperation({ summary: 'Update comment' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        content: {
+          type: 'string',
+          example: 'Updated content',
+        },
+        image: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
   @Patch(':id')
+  @UseInterceptors(FileInterceptor('image', multerConfig))
   update(
     @Param('id') id: string,
     @CurrentUser() user: any,
+    @UploadedFile() file,
     @Body() dto: any,
   ) {
-    return this.service.update(user.id, id, dto);
+    const image = file?.filename;
+
+    return this.service.update(user.id, id, {
+      ...dto,
+      ...(image && { image }),
+    });
   }
 
+  // ============================
+  // ✅ DELETE COMMENT
+  // ============================
+  @ApiOperation({ summary: 'Delete comment' })
   @Delete(':id/:postId')
   delete(
     @Param('id') id: string,
@@ -78,8 +113,13 @@ export class CommentsController {
     return this.service.delete(user.id, id, postId);
   }
 
+  // ============================
+  // ✅ GET COMMENTS
+  // ============================
+  @ApiOperation({ summary: 'Get comments by post' })
   @Get('post/:postId')
   getByPost(@Param('postId') postId: string) {
     return this.service.getByPost(postId);
   }
 }
+  

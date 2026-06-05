@@ -8,9 +8,13 @@ import { Comment } from '../../database/entities/comment.entity';
 import { ReactionsService } from './reactions.service';
 import { ReactionsController } from './reactions.controller';
 
+// ✅ IMPORT EVENTS MODULE
+import { EventsModule } from '../../events/events.module';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([Reaction, Post, Comment]),
+    EventsModule, // ✅ QUAN TRỌNG
   ],
   providers: [ReactionsService],
   controllers: [ReactionsController],

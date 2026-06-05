@@ -10,8 +10,8 @@ import { CommentsModule } from './modules/comments/comments.module';
 import { ReactionsModule } from './modules/reactions/reactions.module';
 import { UploadModule } from './modules/uploads/upload.module';
 
-// ✅ Realtime Gateway
-import { EventsGateway } from './events/events.gateway';
+// ✅ IMPORT EVENTS MODULE
+import { EventsModule } from './events/events.module';
 
 @Module({
   imports: [
@@ -39,10 +39,8 @@ import { EventsGateway } from './events/events.gateway';
     CommentsModule,
     ReactionsModule,
     UploadModule,
-  ],
 
-  // ✅ QUAN TRỌNG: add gateway
-  providers: [EventsGateway],
+    EventsModule, // ✅ thêm vào đây
+  ],
 })
 export class AppModule {}
-``

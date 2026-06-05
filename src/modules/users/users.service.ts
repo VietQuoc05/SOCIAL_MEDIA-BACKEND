@@ -4,7 +4,7 @@ import {
 } from '@nestjs/common';
 
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike } from 'typeorm';
+import { Repository, ILike, In } from 'typeorm';
 
 import { User } from '../../database/entities/user.entity';
 import { Follow } from '../../database/entities/follow.entity';
@@ -45,30 +45,26 @@ export class UsersService {
   }
 
   // ============================
-  // ✅ BUILD USER STATS 🔥
+  // ✅ BUILD USER STATS (OPTIMIZED 🔥)
   // ============================
   private async buildUserStats(
     targetUserId: string,
     currentUserId?: string,
   ) {
-    const followers = await this.followRepo.find({
+    // ✅ đếm nhanh bằng count (không lấy full list)
+    const followersCount = await this.followRepo.count({
       where: { following: { id: targetUserId } },
-      relations: ['follower'],
     });
 
-    const following = await this.followRepo.find({
+    const followingCount = await this.followRepo.count({
       where: { follower: { id: targetUserId } },
-      relations: ['following'],
     });
-
-    const followersCount = followers.length;
-    const followingCount = following.length;
 
     const postsCount = await this.postRepo.count({
       where: { authorId: targetUserId },
     });
 
-    // ✅ mutual friends
+    // ✅ mutual friends (chỉ tính khi khác user)
     let mutualFriendCount = 0;
 
     if (currentUserId && currentUserId !== targetUserId) {
@@ -77,15 +73,20 @@ export class UsersService {
         relations: ['following'],
       });
 
+      const targetFollowers = await this.followRepo.find({
+        where: { following: { id: targetUserId } },
+        relations: ['follower'],
+      });
+
       const myFollowingIds = myFollowing.map(
         f => f.following.id,
       );
 
-      const targetFollowersIds = followers.map(
+      const targetFollowerIds = targetFollowers.map(
         f => f.follower.id,
       );
 
-      mutualFriendCount = targetFollowersIds.filter(id =>
+      mutualFriendCount = targetFollowerIds.filter(id =>
         myFollowingIds.includes(id),
       ).length;
     }
@@ -99,7 +100,7 @@ export class UsersService {
   }
 
   // ============================
-  // ✅ FIND BY ID (FULL PROFILE)
+  // ✅ FIND USER PROFILE (FULL 🔥)
   // ============================
   async findById(id: string, currentUserId?: string) {
     const user = await this.repo.findOne({
@@ -113,14 +114,32 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
+    // ✅ stats
     const stats = await this.buildUserStats(
       id,
       currentUserId,
     );
 
+    // ✅ follow status
+    let followStatus = 'not_follow_yet';
+
+    if (currentUserId && currentUserId !== id) {
+      const isFollowing = await this.followRepo.findOne({
+        where: {
+          follower: { id: currentUserId },
+          following: { id },
+        },
+      });
+
+      followStatus = isFollowing
+        ? 'followed'
+        : 'not_follow_yet';
+    }
+
     return {
       ...user,
       ...stats,
+      followStatus,
     };
   }
 

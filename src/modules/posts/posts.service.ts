@@ -51,7 +51,7 @@ export class PostsService {
   }
 
   // ============================
-  // ✅ GET POST DETAIL 🔥
+  // ✅ GET POST DETAIL
   // ============================
   async findById(postId: string, userId?: string) {
     const post = await this.repo.findOne({
@@ -190,10 +190,14 @@ export class PostsService {
       order: { createdAt: 'DESC' },
     });
 
-    const reactions = await this.reactionRepo.find({
-      where: { post: { id: In(posts.map(p => p.id)) } },
-      relations: ['post', 'user'],
-    });
+    let reactions: Reaction[] = [];
+
+    if (posts.length > 0) {
+      reactions = await this.reactionRepo.find({
+        where: { post: { id: In(posts.map(p => p.id)) } },
+        relations: ['post', 'user'],
+      });
+    }
 
     return this.attachSummary(posts, reactions, userId);
   }
@@ -208,27 +212,33 @@ export class PostsService {
       order: { createdAt: 'DESC' },
     });
 
-    const reactions = await this.reactionRepo.find({
-      where: { post: { id: In(posts.map(p => p.id)) } },
-      relations: ['post', 'user'],
-    });
+    let reactions: Reaction[] = [];
+
+    if (posts.length > 0) {
+      reactions = await this.reactionRepo.find({
+        where: { post: { id: In(posts.map(p => p.id)) } },
+        relations: ['post', 'user'],
+      });
+    }
 
     return this.attachSummary(posts, reactions, currentUserId);
   }
 
   // ============================
-  // ✅ FEED (GIỮ NGUYÊN)
+  // ✅ FEED 🔥 FIXED
   // ============================
   async getFeed(userId: string) {
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
+    // ✅ following
     const following = await this.followRepo.find({
       where: { follower: { id: userId } },
       relations: ['following'],
     });
     const followingIds = following.map(f => f.following.id);
 
+    // ✅ followers
     const followers = await this.followRepo.find({
       where: { following: { id: userId } },
       relations: ['follower'],
@@ -239,6 +249,7 @@ export class PostsService {
       followerIds.includes(id),
     );
 
+    // ✅ GROUP 1
     const group1 = mutualIds.length
       ? await this.repo.find({
           where: {
@@ -250,6 +261,7 @@ export class PostsService {
         })
       : [];
 
+    // ✅ GROUP 2
     const group2 = followingIds.length
       ? await this.repo.find({
           where: {
@@ -261,26 +273,25 @@ export class PostsService {
         })
       : [];
 
-    const excludeIds = [
-      ...group1.map(p => p.id),
-      ...group2.map(p => p.id),
-    ];
+    const excludeIds = [...group1.map(p => p.id), ...group2.map(p => p.id)];
 
-    const group3 = await this.repo
+    // ✅ GROUP 3 (FIX NOT IN)
+    const qb = this.repo
       .createQueryBuilder('post')
       .leftJoinAndSelect('post.author', 'author')
-      .where('post.createdAt > :date', { date: oneWeekAgo })
-      .andWhere(
-        excludeIds.length
-          ? 'post.id NOT IN (:...ids)'
-          : '1=1',
-        { ids: excludeIds },
-      )
+      .where('post.createdAt > :date', { date: oneWeekAgo });
+
+    if (excludeIds.length > 0) {
+      qb.andWhere('post.id NOT IN (:...ids)', { ids: excludeIds });
+    }
+
+    const group3 = await qb
       .orderBy('post.interactionScore', 'DESC')
       .getMany();
 
     let posts = [...group1, ...group2, ...group3];
 
+    // ✅ deduplicate
     const uniqueMap = new Map();
     posts.forEach(p => {
       if (!uniqueMap.has(p.id)) {
@@ -290,12 +301,16 @@ export class PostsService {
 
     posts = Array.from(uniqueMap.values()).slice(0, 50);
 
-    const reactions = await this.reactionRepo.find({
-      where: { post: { id: In(posts.map(p => p.id)) } },
-      relations: ['post', 'user'],
-    });
+    // ✅ FIX In([])
+    let reactions: Reaction[] = [];
+
+    if (posts.length > 0) {
+      reactions = await this.reactionRepo.find({
+        where: { post: { id: In(posts.map(p => p.id)) } },
+        relations: ['post', 'user'],
+      });
+    }
 
     return this.attachSummary(posts, reactions, userId);
   }
 }
-``

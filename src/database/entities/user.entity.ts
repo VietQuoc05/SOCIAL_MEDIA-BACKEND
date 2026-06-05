@@ -1,5 +1,6 @@
 import {
- GeneratedColumn,  Entity,
+  Entity,
+  PrimaryGeneratedColumn,
   Column,
   OneToMany,
   CreateDateColumn,
@@ -16,6 +17,9 @@ export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
+  // ============================
+  // ✅ BASIC INFO
+  // ============================
   @Column({ unique: true })
   @Index()
   email: string;
@@ -27,6 +31,9 @@ export class User {
   @Index()
   username: string;
 
+  // ============================
+  // ✅ PROFILE
+  // ============================
   @Column({ nullable: true })
   avatar: string;
 
@@ -42,29 +49,36 @@ export class User {
   @Column({ nullable: true })
   instagram: string;
 
+  // ============================
   // ✅ PRIVACY SETTINGS 🔥
+  // ============================
   @Column({ default: true })
   isPublicFollowers: boolean;
 
   @Column({ default: true })
   isPublicFollowing: boolean;
 
+  // ============================
   // ✅ RELATIONS
-  @OneToMany(() => Post, post => post.author)
+  // ============================
+  @OneToMany(() => Post, (post) => post.author)
   posts: Post[];
 
-  @OneToMany(() => Comment, comment => comment.author)
+  @OneToMany(() => Comment, (comment) => comment.author)
   comments: Comment[];
 
-  @OneToMany(() => Reaction, reaction => reaction.user)
+  @OneToMany(() => Reaction, (reaction) => reaction.user)
   reactions: Reaction[];
 
-  @OneToMany(() => Follow, follow => follow.follower)
+  @OneToMany(() => Follow, (follow) => follow.follower)
   following: Follow[];
 
-  @OneToMany(() => Follow, follow => follow.following)
+  @OneToMany(() => Follow, (follow) => follow.following)
   followers: Follow[];
 
+  // ============================
+  // ✅ STATUS
+  // ============================
   @Column({ default: 'user' })
   role: string;
 
@@ -77,8 +91,10 @@ export class User {
   @Column({ default: false })
   isDeleted: boolean;
 
+  // ============================
+  // ✅ CREATED TIME
+  // ============================
   @CreateDateColumn()
   @Index()
   createdAt: Date;
 }
-

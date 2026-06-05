@@ -6,34 +6,45 @@ import {
   Index,
   CreateDateColumn,
   JoinColumn,
+  Column,
 } from 'typeorm';
 
 import { User } from './user.entity';
 
 @Entity('follows')
-@Unique(['follower', 'following'])
+@Unique(['followerId', 'followingId'])
 export class Follow {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  // ✅ USER A (người follow)
+  // ============================
+  // ✅ USER A (follower)
+  // ============================
+  @Column()
+  @Index()
+  followerId: string;
+
   @ManyToOne(() => User, (user) => user.following, {
     onDelete: 'CASCADE',
-    nullable: false, // ✅ chống null
   })
   @JoinColumn({ name: 'followerId' })
-  @Index()
   follower: User;
 
-  // ✅ USER B (người được follow)
+  // ============================
+  // ✅ USER B (following)
+  // ============================
+  @Column()
+  @Index()
+  followingId: string;
+
   @ManyToOne(() => User, (user) => user.followers, {
     onDelete: 'CASCADE',
-    nullable: false, // ✅ chống null
   })
   @JoinColumn({ name: 'followingId' })
-  @Index()
   following: User;
 
+  // ============================
   @CreateDateColumn()
   createdAt: Date;
 }
+``

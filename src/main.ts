@@ -11,9 +11,12 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   // ============================
-  // ✅ ENABLE CORS
+  // ✅ ENABLE CORS (FIX SWAGGER)
   // ============================
-  app.enableCors();
+  app.enableCors({
+    origin: true,
+    credentials: true,
+  });
 
   // ============================
   // ✅ VALIDATION PIPE
@@ -27,7 +30,7 @@ async function bootstrap() {
   );
 
   // ============================
-  // ✅ SERVE STATIC FILE (UPLOADS) 🔥
+  // ✅ SERVE STATIC FILE
   // ============================
   app.use(
     '/uploads',
@@ -35,29 +38,22 @@ async function bootstrap() {
   );
 
   // ============================
-  // ✅ SWAGGER
+  // ✅ SWAGGER ✅ FIX QUAN TRỌNG
   // ============================
   const config = new DocumentBuilder()
     .setTitle('Social API')
     .setDescription('API for social media backend')
     .setVersion('1.0')
-    .addBearerAuth({
-      type: 'http',
-      scheme: 'bearer',
-      bearerFormat: 'JWT',
-    })
+    .addBearerAuth() // ✅ đơn giản + đúng chuẩn
     .build();
 
-    
-app.useGlobalFilters({
-  catch(exception: any, host: any) {
-    console.error('🔥 ERROR:', exception);
-    throw exception;
-  },
-} as any);
-
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document);
+
+  SwaggerModule.setup('api', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true, // ✅ giữ token sau refresh
+    },
+  });
 
   // ============================
   // ✅ START SERVER
@@ -69,3 +65,4 @@ app.useGlobalFilters({
 }
 
 bootstrap();
+``

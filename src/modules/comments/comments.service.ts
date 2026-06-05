@@ -20,7 +20,7 @@ export class CommentsService {
   ) {}
 
   // ============================
-  // ✅ CREATE COMMENT
+  // ✅ CREATE COMMENT / REPLY (+1)
   // ============================
   async create(userId: string, postId: string, dto: any) {
     const post = await this.postRepo.findOne({
@@ -39,6 +39,7 @@ export class CommentsService {
       parent: dto.parentId ? { id: dto.parentId } : null,
     });
 
+    // ✅ comment hoặc reply đều +1
     await this.postRepo.increment(
       { id: postId },
       'interactionScore',
@@ -49,7 +50,7 @@ export class CommentsService {
   }
 
   // ============================
-  // ✅ DELETE COMMENT
+  // ✅ DELETE COMMENT / REPLY (-1)
   // ============================
   async delete(userId: string, commentId: string, postId: string) {
     const comment = await this.repo.findOne({
@@ -70,6 +71,7 @@ export class CommentsService {
 
     await this.repo.delete(commentId);
 
+    // ✅ giảm score
     await this.postRepo.decrement(
       { id: postId },
       'interactionScore',
@@ -80,7 +82,7 @@ export class CommentsService {
   }
 
   // ============================
-  // ✅ BUILD REACTION SUMMARY 🔥
+  // ✅ BUILD REACTION SUMMARY
   // ============================
   private buildReactionSummary(reactions: any[], userId?: string) {
     const counts: Record<string, number> = {};
@@ -113,14 +115,14 @@ export class CommentsService {
   }
 
   // ============================
-  // ✅ GET COMMENTS TREE + HOT + SUMMARY
+  // ✅ GET COMMENTS TREE
   // ============================
   async getByPost(postId: string, userId?: string) {
     const comments = await this.repo
       .createQueryBuilder('comment')
       .leftJoinAndSelect('comment.author', 'author')
       .leftJoinAndSelect('comment.reactions', 'reactions')
-      .leftJoinAndSelect('reactions.user', 'reactionUser') // ✅ QUAN TRỌNG
+      .leftJoinAndSelect('reactions.user', 'reactionUser')
       .leftJoinAndSelect('comment.parent', 'parent')
       .where('comment.postId = :postId', { postId })
       .getMany();
@@ -156,7 +158,7 @@ export class CommentsService {
       }
     });
 
-    // ✅ SORT HOT COMMENT
+    // ✅ sort theo reaction (hot)
     const getScore = (c: any) => c.totalReactions || 0;
 
     tree.sort((a, b) => getScore(b) - getScore(a));

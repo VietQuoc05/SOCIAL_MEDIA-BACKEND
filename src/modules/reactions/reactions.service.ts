@@ -23,7 +23,9 @@ export class ReactionsService {
     private commentRepo: Repository<Comment>,
   ) {}
 
-  // ✅ REACT POST
+  // ============================
+  // ✅ REACT POST (±2)
+  // ============================
   async reactPost(userId: string, postId: string, type: string) {
     const reactionType = type as ReactionType;
 
@@ -38,15 +40,17 @@ export class ReactionsService {
       },
     });
 
+    // ✅ nếu đã có → chỉ update type, KHÔNG tăng score
     if (existing) {
       existing.type = reactionType;
       return this.repo.save(existing);
     }
 
+    // ✅ new reaction → +2
     await this.postRepo.increment(
       { id: postId },
       'interactionScore',
-      1,
+      2,
     );
 
     const reaction = this.repo.create({
@@ -58,7 +62,9 @@ export class ReactionsService {
     return this.repo.save(reaction);
   }
 
-  // ✅ REMOVE POST REACTION
+  // ============================
+  // ✅ REMOVE POST REACTION (-2)
+  // ============================
   async removePostReaction(userId: string, postId: string) {
     const result = await this.repo.delete({
       user: { id: userId },
@@ -69,14 +75,16 @@ export class ReactionsService {
       await this.postRepo.decrement(
         { id: postId },
         'interactionScore',
-        1,
+        2,
       );
     }
 
     return { message: 'Reaction removed' };
   }
 
-  // ✅ REACT COMMENT
+  // ============================
+  // ✅ REACT COMMENT (±2)
+  // ============================
   async reactComment(
     userId: string,
     commentId: string,
@@ -95,15 +103,17 @@ export class ReactionsService {
       },
     });
 
+    // ✅ update only
     if (existing) {
       existing.type = reactionType;
       return this.repo.save(existing);
     }
 
+    // ✅ new → +2
     await this.commentRepo.increment(
       { id: commentId },
       'interactionScore',
-      1,
+      2,
     );
 
     const reaction = this.repo.create({
@@ -115,7 +125,9 @@ export class ReactionsService {
     return this.repo.save(reaction);
   }
 
-  // ✅ REMOVE COMMENT REACTION
+  // ============================
+  // ✅ REMOVE COMMENT REACTION (-2)
+  // ============================
   async removeCommentReaction(
     userId: string,
     commentId: string,
@@ -129,7 +141,7 @@ export class ReactionsService {
       await this.commentRepo.decrement(
         { id: commentId },
         'interactionScore',
-        1,
+        2,
       );
     }
 

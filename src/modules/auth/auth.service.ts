@@ -11,6 +11,26 @@ import * as bcrypt from 'bcrypt';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 
+// ✅ util normalize
+function normalizeDisplayName(input: string) {
+  const cleaned = input
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9.]/g, '')
+    .replace(/\.+/g, '.')
+    .replace(/^\./, '')
+    .replace(/\.$/, '');
+
+  if (cleaned.length < 6) {
+    throw new BadRequestException(
+      'DisplayName must be at least 6 characters',
+    );
+  }
+
+  return cleaned;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -18,13 +38,25 @@ export class AuthService {
     private jwt: JwtService,
   ) {}
 
+  // ============================
   // ✅ REGISTER
+  // ============================
   async register(dto: RegisterDto) {
-    const { email, password, username } = dto;
+    const { email, password, username, displayName } = dto;
 
-    const existing = await this.usersService.findByEmail(email);
+    const normalizedDisplayName =
+      normalizeDisplayName(displayName);
+
+    const existing =
+      await this.usersService.findByEmailOrDisplayName(
+        email,
+        normalizedDisplayName,
+      );
+
     if (existing) {
-      throw new BadRequestException('Email already exists');
+      throw new BadRequestException(
+        'Email or displayName already exists',
+      );
     }
 
     const hash = await bcrypt.hash(password, 10);
@@ -32,15 +64,17 @@ export class AuthService {
     const user = await this.usersService.create({
       email,
       username,
+      displayName: normalizedDisplayName,
       password: hash,
     });
 
     const { password: _, ...result } = user;
-
     return result;
   }
 
+  // ============================
   // ✅ LOGIN
+  // ============================
   async login(dto: LoginDto) {
     const { email, password } = dto;
 
@@ -50,7 +84,10 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const match = await bcrypt.compare(password, user.password);
+    const match = await bcrypt.compare(
+      password,
+      user.password,
+    );
 
     if (!match) {
       throw new UnauthorizedException('Invalid credentials');

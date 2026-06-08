@@ -27,9 +27,12 @@ export class User {
   @Column({ select: false })
   password: string;
 
+  @Column()
+  username: string; // ✅ giữ nguyên (có dấu)
+
   @Column({ unique: true })
   @Index()
-  username: string;
+  displayName: string; // ✅ NEW (IG style)
 
   // ============================
   // ✅ PROFILE
@@ -50,7 +53,7 @@ export class User {
   instagram: string;
 
   // ============================
-  // ✅ PRIVACY SETTINGS 🔥
+  // ✅ PRIVACY
   // ============================
   @Column({ default: true })
   isPublicFollowers: boolean;
@@ -61,19 +64,19 @@ export class User {
   // ============================
   // ✅ RELATIONS
   // ============================
-  @OneToMany(() => Post, (post) => post.author)
+  @OneToMany(() => Post, post => post.author)
   posts: Post[];
 
-  @OneToMany(() => Comment, (comment) => comment.author)
+  @OneToMany(() => Comment, comment => comment.author)
   comments: Comment[];
 
-  @OneToMany(() => Reaction, (reaction) => reaction.user)
+  @OneToMany(() => Reaction, reaction => reaction.user)
   reactions: Reaction[];
 
-  @OneToMany(() => Follow, (follow) => follow.follower)
+  @OneToMany(() => Follow, follow => follow.follower)
   following: Follow[];
 
-  @OneToMany(() => Follow, (follow) => follow.following)
+  @OneToMany(() => Follow, follow => follow.following)
   followers: Follow[];
 
   // ============================
@@ -92,9 +95,10 @@ export class User {
   isDeleted: boolean;
 
   // ============================
-  // ✅ CREATED TIME
+  // ✅ CREATED
   // ============================
   @CreateDateColumn()
   @Index()
   createdAt: Date;
 }
+``

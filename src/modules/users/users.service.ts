@@ -2,14 +2,35 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike } from 'typeorm';
+import { Repository } from 'typeorm';
 
 import { User } from '../../database/entities/user.entity';
 import { Follow } from '../../database/entities/follow.entity';
 import { Post } from '../../database/entities/post.entity';
+
+// ✅ normalize displayName util (inline cho tiện)
+function normalizeDisplayName(input: string) {
+  const cleaned = input
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9.]/g, '')
+    .replace(/\.+/g, '.')
+    .replace(/^\./, '')
+    .replace(/\.$/, '');
+
+  if (cleaned.length < 6) {
+    throw new BadRequestException(
+      'DisplayName must be at least 6 characters',
+    );
+  }
+
+  return cleaned;
+}
 
 @Injectable()
 export class UsersService {
@@ -38,7 +59,23 @@ export class UsersService {
   async findByEmail(email: string) {
     return this.repo.findOne({
       where: { email, isDeleted: false },
-      select: ['id', 'email', 'password', 'username'],
+      select: [
+        'id',
+        'email',
+        'password',
+        'username',
+        'displayName', // ✅ thêm
+      ],
+    });
+  }
+
+  // ✅ NEW: CHECK DUPLICATE (REGISTER)
+  async findByEmailOrDisplayName(
+    email: string,
+    displayName: string,
+  ) {
+    return this.repo.findOne({
+      where: [{ email }, { displayName }],
     });
   }
 
@@ -131,7 +168,7 @@ export class UsersService {
   }
 
   // ============================
-  // ✅ FOLLOWERS LIST (PRIVACY)
+  // ✅ FOLLOWERS
   // ============================
   async getFollowers(userId: string, currentUserId?: string) {
     const user = await this.repo.findOne({
@@ -154,12 +191,13 @@ export class UsersService {
     return followers.map(f => ({
       id: f.follower.id,
       username: f.follower.username,
+      displayName: f.follower.displayName, // ✅ thêm
       avatar: f.follower.avatar,
     }));
   }
 
   // ============================
-  // ✅ FOLLOWING LIST (PRIVACY)
+  // ✅ FOLLOWING
   // ============================
   async getFollowing(userId: string, currentUserId?: string) {
     const user = await this.repo.findOne({
@@ -182,12 +220,13 @@ export class UsersService {
     return following.map(f => ({
       id: f.following.id,
       username: f.following.username,
+      displayName: f.following.displayName, // ✅ thêm
       avatar: f.following.avatar,
     }));
   }
 
   // ============================
-  // ✅ UPDATE
+  // ✅ UPDATE PROFILE
   // ============================
   async updateProfile(userId: string, dto: any) {
     const user = await this.repo.findOne({
@@ -196,11 +235,38 @@ export class UsersService {
 
     if (!user) throw new NotFoundException('User not found');
 
+    // ✅ xử lý displayName
+    if (dto.displayName) {
+      const normalized = normalizeDisplayName(
+        dto.displayName,
+      );
+
+      const exists = await this.repo.findOne({
+        where: { displayName: normalized },
+      });
+
+      if (exists && exists.id !== userId) {
+        throw new BadRequestException(
+          'DisplayName already taken',
+        );
+      }
+
+      user.displayName = normalized;
+    }
+
+    // ✅ username giữ nguyên
+    if (dto.username) {
+      user.username = dto.username;
+    }
+
     Object.assign(user, dto);
 
     return this.repo.save(user);
   }
 
+  // ============================
+  // ✅ FIND ALL
+  // ============================
   async findAll() {
     return this.repo.find({
       where: { isDeleted: false },
@@ -208,16 +274,40 @@ export class UsersService {
     });
   }
 
+  // ============================
+  // ✅ SEARCH (🔥 PRIORITY DISPLAYNAME)
+  // ============================
   async search(keyword: string) {
-    return this.repo.find({
-      where: [
-        { username: ILike(`%${keyword}%`), isDeleted: false },
-        { email: ILike(`%${keyword}%`), isDeleted: false },
-      ],
-      take: 20,
-    });
+    const q = keyword.toLowerCase();
+
+    return this.repo
+      .createQueryBuilder('user')
+      .where('LOWER(user.displayName) LIKE :q', {
+        q: `%${q}%`,
+      })
+      .orWhere('user.username ILIKE :k', {
+        k: `%${keyword}%`,
+      })
+      .orderBy(
+        `
+        CASE 
+          WHEN LOWER(user.displayName) LIKE :start THEN 0
+          WHEN LOWER(user.displayName) LIKE :q THEN 1
+          ELSE 2
+        END
+      `,
+      )
+      .setParameters({
+        q: `%${q}%`,
+        start: `${q}%`,
+      })
+      .limit(20)
+      .getMany();
   }
 
+  // ============================
+  // ✅ SOFT DELETE
+  // ============================
   async softDelete(userId: string) {
     const user = await this.repo.findOne({
       where: { id: userId },

@@ -1,8 +1,8 @@
 import {
   Controller,
+  Body,  
   Get,
   Patch,
-  Body,
   Param,
   Query,
   UseGuards,
@@ -16,7 +16,6 @@ import { CurrentUser } from '../../common/decorators/user.decorator';
 
 import {
   ApiTags,
-  ApiOperation,
   ApiBearerAuth,
   ApiQuery,
   ApiConsumes,
@@ -31,17 +30,49 @@ import { multerConfig } from '../../config/upload.config';
 export class UsersController {
   constructor(private readonly service: UsersService) {}
 
+  // ============================
+  // ✅ GET ALL USERS
+  // ============================
   @Get()
   findAll() {
     return this.service.findAll();
   }
 
+  // ============================
+  // ✅ SEARCH USER (PRIORITY DISPLAYNAME)
+  // ============================
   @Get('search')
   @ApiQuery({ name: 'q', required: true })
   search(@Query('q') q: string) {
     return this.service.search(q);
   }
 
+  // ============================
+  // ✅ CHECK DISPLAY NAME (🔥 NEW)
+  // ============================
+  @Get('check-display-name')
+  @ApiQuery({ name: 'name', required: true })
+  async checkDisplayName(@Query('name') name: string) {
+    const normalized =
+      name
+        ?.toLowerCase()
+        ?.normalize('NFD')
+        ?.replace(/[\u0300-\u036f]/g, '')
+        ?.replace(/[^a-z0-9.]/g, '');
+
+    const exists = await this.service.findByEmailOrDisplayName(
+      '',
+      normalized,
+    );
+
+    return {
+      available: !exists,
+    };
+  }
+
+  // ============================
+  // ✅ GET ME
+  // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Get('me')
@@ -49,6 +80,9 @@ export class UsersController {
     return this.service.findById(user.id, user.id);
   }
 
+  // ============================
+  // ✅ GET PROFILE
+  // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Get(':id')
@@ -56,21 +90,35 @@ export class UsersController {
     return this.service.findById(id, user?.id);
   }
 
+  // ============================
+  // ✅ FOLLOWERS
+  // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Get(':id/followers')
-  getFollowers(@Param('id') id: string, @CurrentUser() user: any) {
+  getFollowers(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
     return this.service.getFollowers(id, user?.id);
   }
 
+  // ============================
+  // ✅ FOLLOWING
+  // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Get(':id/following')
-  getFollowing(@Param('id') id: string, @CurrentUser() user: any) {
+  getFollowing(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
     return this.service.getFollowing(id, user?.id);
   }
 
+  // ============================
   // ✅ UPDATE PROFILE + UPLOAD
+  // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiConsumes('multipart/form-data')
@@ -87,6 +135,9 @@ export class UsersController {
           format: 'binary',
         },
         username: {
+          type: 'string',
+        },
+        displayName: {
           type: 'string',
         },
         bio: {

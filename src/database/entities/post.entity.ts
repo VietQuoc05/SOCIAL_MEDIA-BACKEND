@@ -2,55 +2,66 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
+  JoinColumn,  
   ManyToOne,
   OneToMany,
   CreateDateColumn,
   Index,
-  JoinColumn,
 } from 'typeorm';
 
 import { User } from './user.entity';
 import { Comment } from './comment.entity';
 import { Reaction } from './reaction.entity';
 
-@Entity('posts') // ✅ đặt tên table rõ ràng
+@Entity('posts')
+@Index(['createdAt']) // ✅ cursor pagination
+@Index(['interactionScore']) // ✅ sort hot posts
+@Index(['authorId']) // ✅ filter theo user/feed
 export class Post {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  // ✅ AUTHOR RELATION (QUAN TRỌNG)
-  @ManyToOne(() => User, (user) => user.posts, {
+  // ============================
+  // ✅ AUTHOR
+  // ============================
+  @ManyToOne(() => User, user => user.posts, {
     onDelete: 'CASCADE',
     nullable: false,
   })
-  @JoinColumn({ name: 'authorId' }) // ✅ FIX QUAN TRỌNG
-  @Index()
+  @JoinColumn({ name: 'authorId' })
   author: User;
 
   @Column({ type: 'uuid' })
-  authorId: string; // ✅ thêm explicit FK (tránh lỗi TypeORM)
+  authorId: string;
 
-  // ✅ CAPTION
+  // ============================
+  // ✅ CONTENT
+  // ============================
   @Column({ type: 'text', nullable: true })
   caption: string;
 
-  // ✅ IMAGES
   @Column('text', { array: true, default: [] })
   images: string[];
 
-  // ✅ INTERACTION SCORE
+  // ============================
+  // ✅ INTERACTION
+  // ============================
   @Column({ type: 'int', default: 0 })
   interactionScore: number;
 
+  // ============================
   // ✅ RELATIONS
-  @OneToMany(() => Comment, (comment) => comment.post)
+  // ============================
+  @OneToMany(() => Comment, comment => comment.post)
   comments: Comment[];
 
-  @OneToMany(() => Reaction, (reaction) => reaction.post)
+  @OneToMany(() => Reaction, reaction => reaction.post)
   reactions: Reaction[];
 
-  // ✅ CREATED AT
+  // ============================
+  // ✅ TIME
+  // ============================
   @CreateDateColumn()
-  @Index()
   createdAt: Date;
 }
+

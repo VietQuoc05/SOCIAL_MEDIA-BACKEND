@@ -10,6 +10,7 @@ import {
   UseInterceptors,
   UploadedFiles,
   UnauthorizedException,
+  Query,
 } from '@nestjs/common';
 
 import { PostsService } from './posts.service';
@@ -23,6 +24,7 @@ import {
   ApiConsumes,
   ApiBody,
   ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
 
 import { FilesInterceptor } from '@nestjs/platform-express';
@@ -61,22 +63,48 @@ export class PostsController {
     if (!user) throw new UnauthorizedException();
 
     const images = files?.map(f => f.filename) || [];
-    return this.service.create(user.id, { ...dto, images });
+
+    return this.service.create(user.id, {
+      ...dto,
+      images,
+    });
   }
 
   // ============================
-  // ✅ FEED 🔥 (ĐẶT TRƯỚC)
+  // ✅ FEED (🔥 INFINITE SCROLL)
   // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get user feed' })
+  @ApiOperation({
+    summary: 'Get feed (infinite scroll with cursor)',
+  })
+  @ApiQuery({
+    name: 'cursor',
+    required: false,
+    description: 'ISO date cursor (createdAt)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Number of posts (default 10)',
+  })
   @Get('feed')
-  feed(@CurrentUser() user: any) {
+  feed(
+    @CurrentUser() user: any,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: number,
+  ) {
     if (!user) {
-      throw new UnauthorizedException('Missing or invalid token');
+      throw new UnauthorizedException(
+        'Missing or invalid token',
+      );
     }
 
-    return this.service.getFeed(user.id);
+    return this.service.getFeed(
+      user.id,
+      cursor,
+      Number(limit) || 10,
+    );
   }
 
   // ============================
@@ -119,7 +147,7 @@ export class PostsController {
   }
 
   // ============================
-  // ✅ GET POST DETAIL ✅ (ĐỂ CUỐI)
+  // ✅ GET POST DETAIL
   // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

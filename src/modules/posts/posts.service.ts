@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan, In } from 'typeorm';
+import { Repository, In } from 'typeorm';
 
 import { Post } from '../../database/entities/post.entity';
 import { Follow } from '../../database/entities/follow.entity';
@@ -26,7 +26,7 @@ export class PostsService {
   ) {}
 
   // ============================
-  // ✅ CREATE POST
+  // ✅ CREATE
   // ============================
   async create(userId: string, dto: any) {
     if (!dto.caption) {
@@ -51,7 +51,7 @@ export class PostsService {
   }
 
   // ============================
-  // ✅ GET POST DETAIL
+  // ✅ DETAIL
   // ============================
   async findById(postId: string, userId?: string) {
     const post = await this.repo.findOne({
@@ -59,21 +59,24 @@ export class PostsService {
       relations: ['author'],
     });
 
-    if (!post) {
-      throw new NotFoundException('Post not found');
-    }
+    if (!post) throw new NotFoundException('Post not found');
 
     const reactions = await this.reactionRepo.find({
       where: { post: { id: postId } },
       relations: ['post', 'user'],
     });
 
-    const [data] = this.attachSummary([post], reactions, userId);
-    return data;
+    const [result] = this.attachSummary(
+      [post],
+      reactions,
+      userId,
+    );
+
+    return result;
   }
 
   // ============================
-  // ✅ UPDATE POST
+  // ✅ UPDATE
   // ============================
   async update(postId: string, userId: string, dto: any) {
     const post = await this.repo.findOne({
@@ -81,7 +84,7 @@ export class PostsService {
       relations: ['author'],
     });
 
-    if (!post) throw new NotFoundException('Post not found');
+    if (!post) throw new NotFoundException();
 
     if (post.author.id !== userId) {
       throw new ForbiddenException('No permission');
@@ -97,7 +100,9 @@ export class PostsService {
 
     if (dto.images !== undefined) {
       if (!Array.isArray(dto.images)) {
-        throw new BadRequestException('Images must be an array');
+        throw new BadRequestException(
+          'Images must be an array',
+        );
       }
       post.images = dto.images;
     }
@@ -106,7 +111,7 @@ export class PostsService {
   }
 
   // ============================
-  // ✅ DELETE POST
+  // ✅ DELETE
   // ============================
   async delete(postId: string, userId: string) {
     const post = await this.repo.findOne({
@@ -114,7 +119,7 @@ export class PostsService {
       relations: ['author'],
     });
 
-    if (!post) throw new NotFoundException('Post not found');
+    if (!post) throw new NotFoundException();
 
     if (post.author.id !== userId) {
       throw new ForbiddenException('No permission');
@@ -126,9 +131,12 @@ export class PostsService {
   }
 
   // ============================
-  // ✅ BUILD REACTION SUMMARY
+  // ✅ REACTION SUMMARY
   // ============================
-  private buildReactionSummary(reactions: any[], userId?: string) {
+  private buildReactionSummary(
+    reactions: Reaction[],
+    userId?: string,
+  ) {
     const counts: Record<string, number> = {};
     let myReaction: string | null = null;
 
@@ -159,7 +167,7 @@ export class PostsService {
   }
 
   // ============================
-  // ✅ ATTACH SUMMARY (SAFE)
+  // ✅ ATTACH SUMMARY
   // ============================
   private attachSummary(
     posts: Post[],
@@ -178,88 +186,77 @@ export class PostsService {
 
     return posts.map(post => ({
       ...post,
-      ...this.buildReactionSummary(map[post.id] || [], userId),
+      ...this.buildReactionSummary(
+        map[post.id] || [],
+        userId,
+      ),
     }));
   }
 
   // ============================
-  // ✅ FEED — FIX TRIỆT ĐỂ 🔥
+  // ✅ FEED (🔥 INFINITE SCROLL)
   // ============================
-  async getFeed(userId: string) {
+  async getFeed(
+    userId: string,
+    cursor?: string,
+    limit = 10,
+  ) {
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-    // ✅ NO JOIN — dùng ID trực tiếp
-    const following = await this.followRepo.find({
-      where: { followerId: userId },
-    });
-    const followingIds = following.map(f => f.followingId);
-
-    const followers = await this.followRepo.find({
-      where: { followingId: userId },
-    });
-    const followerIds = followers.map(f => f.followerId);
-
-    const mutualIds = followingIds.filter(id =>
-      followerIds.includes(id),
-    );
-
-    // ✅ GROUP 1
-    const group1 = mutualIds.length
-      ? await this.repo.find({
-          where: {
-            authorId: In(mutualIds),
-            createdAt: MoreThan(oneWeekAgo),
-          },
-          relations: ['author'],
-          order: { interactionScore: 'DESC' },
-          take: 20,
-        })
-      : [];
-
-    // ✅ GROUP 2
-    const group2 = followingIds.length
-      ? await this.repo.find({
-          where: {
-            authorId: In(followingIds),
-            createdAt: MoreThan(oneWeekAgo),
-          },
-          relations: ['author'],
-          order: { interactionScore: 'DESC' },
-          take: 20,
-        })
-      : [];
-
-    const excludeIds = [...group1, ...group2].map(p => p.id);
-
-    // ✅ GROUP 3 (SAFE QUERY)
     const qb = this.repo
       .createQueryBuilder('post')
       .leftJoinAndSelect('post.author', 'author')
-      .where('post.createdAt > :date', { date: oneWeekAgo });
+      .where('post.createdAt > :date', {
+        date: oneWeekAgo,
+      });
 
-    if (excludeIds.length > 0) {
-      qb.andWhere('post.id NOT IN (:...ids)', { ids: excludeIds });
+    // ✅ cursor-based pagination
+    if (cursor) {
+      qb.andWhere('post.createdAt < :cursor', {
+        cursor: new Date(cursor),
+      });
     }
 
-    const group3 = await qb
-      .orderBy('post.interactionScore', 'DESC')
-      .limit(20)
-      .getMany();
+    qb.orderBy('post.interactionScore', 'DESC')
+      .addOrderBy('post.createdAt', 'DESC')
+      .take(limit);
 
-    let posts = [...group1, ...group2, ...group3];
+    const posts = await qb.getMany();
 
-    // ✅ REMOVE DUP
-    const unique = new Map();
-    posts.forEach(p => {
-      if (!unique.has(p.id)) {
-        unique.set(p.id, p);
-      }
+    // ✅ fetch reactions
+    let reactions: Reaction[] = [];
+
+    if (posts.length > 0) {
+      reactions = await this.reactionRepo.find({
+        where: {
+          post: { id: In(posts.map(p => p.id)) },
+        },
+        relations: ['post', 'user'],
+      });
+    }
+
+    const data = this.attachSummary(posts, reactions, userId);
+
+    return {
+      data,
+      nextCursor:
+        posts.length > 0
+          ? posts[posts.length - 1].createdAt
+          : null,
+      hasMore: posts.length === limit,
+    };
+  }
+
+  // ============================
+  // ✅ FIND ALL
+  // ============================
+  async findAll(userId?: string) {
+    const posts = await this.repo.find({
+      relations: ['author'],
+      order: { createdAt: 'DESC' },
     });
 
-    posts = Array.from(unique.values());
-
-    // ✅ SAFE REACTION QUERY
     let reactions: Reaction[] = [];
 
     if (posts.length > 0) {
@@ -273,40 +270,31 @@ export class PostsService {
 
     return this.attachSummary(posts, reactions, userId);
   }
-  async findAll(userId?: string) {
-  const posts = await this.repo.find({
-    relations: ['author'],
-    order: { createdAt: 'DESC' },
-  });
 
-  let reactions: Reaction[] = [];
-
-  if (posts.length > 0) {
-    reactions = await this.reactionRepo.find({
-      where: { post: { id: In(posts.map(p => p.id)) } },
-      relations: ['post', 'user'],
+  // ============================
+  // ✅ POSTS BY USER
+  // ============================
+  async findByUser(
+    userId: string,
+    currentUserId?: string,
+  ) {
+    const posts = await this.repo.find({
+      where: { authorId: userId },
+      relations: ['author'],
+      order: { createdAt: 'DESC' },
     });
+
+    let reactions: Reaction[] = [];
+
+    if (posts.length > 0) {
+      reactions = await this.reactionRepo.find({
+        where: {
+          post: { id: In(posts.map(p => p.id)) },
+        },
+        relations: ['post', 'user'],
+      });
+    }
+
+    return this.attachSummary(posts, reactions, currentUserId);
   }
-
-  return this.attachSummary(posts, reactions, userId);
-}
-async findByUser(userId: string, currentUserId?: string) {
-  const posts = await this.repo.find({
-    where: { authorId: userId },
-    relations: ['author'],
-    order: { createdAt: 'DESC' },
-  });
-
-  let reactions: Reaction[] = [];
-
-  if (posts.length > 0) {
-    reactions = await this.reactionRepo.find({
-      where: { post: { id: In(posts.map(p => p.id)) } },
-      relations: ['post', 'user'],
-    });
-  }
-
-  return this.attachSummary(posts, reactions, currentUserId);
-}
-
 }

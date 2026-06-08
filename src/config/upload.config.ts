@@ -1,14 +1,6 @@
-import { diskStorage } from 'multer';
-import { extname } from 'path';
+import * as multer from 'multer';
 
+// ✅ dùng memory để có file.buffer → upload MinIO
 export const multerConfig = {
-  storage: diskStorage({
-    destination: './uploads',
-    filename: (req, file, callback) => {
-      const uniqueName =
-        Date.now() + '-' + Math.round(Math.random() * 1e9);
-
-      callback(null, uniqueName + extname(file.originalname));
-    },
-  }),
+  storage: multer.memoryStorage(),
 };

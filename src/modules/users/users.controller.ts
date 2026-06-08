@@ -1,6 +1,6 @@
 import {
   Controller,
-  Body,  
+  Body,
   Get,
   Patch,
   Param,
@@ -11,6 +11,8 @@ import {
 } from '@nestjs/common';
 
 import { UsersService } from './users.service';
+import { UploadService } from '../uploads/upload.service'; // ✅ ADD
+
 import { JwtAuthGuard } from '../../common/guards/jwt.guard';
 import { CurrentUser } from '../../common/decorators/user.decorator';
 
@@ -28,7 +30,10 @@ import { multerConfig } from '../../config/upload.config';
 @ApiTags('Users')
 @Controller('users')
 export class UsersController {
-  constructor(private readonly service: UsersService) {}
+  constructor(
+    private readonly service: UsersService,
+    private readonly uploadService: UploadService, // ✅ inject
+  ) {}
 
   // ============================
   // ✅ GET ALL USERS
@@ -39,7 +44,7 @@ export class UsersController {
   }
 
   // ============================
-  // ✅ SEARCH USER (PRIORITY DISPLAYNAME)
+  // ✅ SEARCH
   // ============================
   @Get('search')
   @ApiQuery({ name: 'q', required: true })
@@ -48,17 +53,16 @@ export class UsersController {
   }
 
   // ============================
-  // ✅ CHECK DISPLAY NAME (🔥 NEW)
+  // ✅ CHECK DISPLAY NAME
   // ============================
   @Get('check-display-name')
   @ApiQuery({ name: 'name', required: true })
   async checkDisplayName(@Query('name') name: string) {
-    const normalized =
-      name
-        ?.toLowerCase()
-        ?.normalize('NFD')
-        ?.replace(/[\u0300-\u036f]/g, '')
-        ?.replace(/[^a-z0-9.]/g, '');
+    const normalized = name
+      ?.toLowerCase()
+      ?.normalize('NFD')
+      ?.replace(/[\u0300-\u036f]/g, '')
+      ?.replace(/[^a-z0-9.]/g, '');
 
     const exists = await this.service.findByEmailOrDisplayName(
       '',
@@ -81,7 +85,7 @@ export class UsersController {
   }
 
   // ============================
-  // ✅ GET PROFILE
+  // ✅ PROFILE
   // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -117,7 +121,7 @@ export class UsersController {
   }
 
   // ============================
-  // ✅ UPDATE PROFILE + UPLOAD
+  // ✅ UPDATE PROFILE + UPLOAD (🔥 FIX MINIO)
   // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -126,23 +130,11 @@ export class UsersController {
     schema: {
       type: 'object',
       properties: {
-        avatar: {
-          type: 'string',
-          format: 'binary',
-        },
-        cover: {
-          type: 'string',
-          format: 'binary',
-        },
-        username: {
-          type: 'string',
-        },
-        displayName: {
-          type: 'string',
-        },
-        bio: {
-          type: 'string',
-        },
+        avatar: { type: 'string', format: 'binary' },
+        cover: { type: 'string', format: 'binary' },
+        username: { type: 'string' },
+        displayName: { type: 'string' },
+        bio: { type: 'string' },
       },
     },
   })
@@ -156,13 +148,30 @@ export class UsersController {
       multerConfig,
     ),
   )
-  update(
+  async update(
     @CurrentUser() user: any,
     @UploadedFiles() files,
     @Body() dto: any,
   ) {
-    const avatar = files?.avatar?.[0]?.filename;
-    const cover = files?.cover?.[0]?.filename;
+    const avatarFile = files?.avatar?.[0];
+    const coverFile = files?.cover?.[0];
+
+    let avatar: string | undefined;
+    let cover: string | undefined;
+
+    // ✅ upload avatar lên MinIO
+    if (avatarFile) {
+      avatar = await this.uploadService.uploadFile(
+        avatarFile,
+      );
+    }
+
+    // ✅ upload cover lên MinIO
+    if (coverFile) {
+      cover = await this.uploadService.uploadFile(
+        coverFile,
+      );
+    }
 
     return this.service.updateProfile(user.id, {
       ...dto,

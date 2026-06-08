@@ -3,22 +3,43 @@ import { MinioClient } from '../../config/minio.config';
 
 @Injectable()
 export class UploadService implements OnModuleInit {
-  bucket = process.env.MINIO_BUCKET;
+  private bucket = process.env.MINIO_BUCKET || 'social';
 
   async onModuleInit() {
     const exists = await MinioClient.bucketExists(this.bucket);
-    if (!exists) await MinioClient.makeBucket(this.bucket);
+
+    if (!exists) {
+      await MinioClient.makeBucket(this.bucket);
+    }
   }
 
-  async upload(file: Express.Multer.File) {
-    const name = Date.now() + '-' + file.originalname;
+  // ✅ UPLOAD 1 FILE
+  async uploadFile(file: Express.Multer.File) {
+    const fileName = `${Date.now()}-${file.originalname}`;
 
     await MinioClient.putObject(
       this.bucket,
-      name,
+      fileName,
       file.buffer,
+      file.size,
+      {
+        'Content-Type': file.mimetype,
+      },
     );
 
-    return `http://${process.env.MINIO_ENDPOINT}:${process.env.MINIO_PORT}/${this.bucket}/${name}`;
+    return fileName;
+  }
+
+  // ✅ UPLOAD MULTIPLE
+  async uploadMultiple(files: Express.Multer.File[]) {
+    return Promise.all(
+      files.map((file) => this.uploadFile(file)),
+    );
+  }
+
+  // ✅ GET FULL URL
+  getFileUrl(fileName: string) {
+    return `http://${process.env.MINIO_ENDPOINT}:${process.env.MINIO_PORT}/${this.bucket}/${fileName}`;
   }
 }
+``

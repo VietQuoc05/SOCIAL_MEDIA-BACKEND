@@ -14,6 +14,8 @@ import {
 } from '@nestjs/common';
 
 import { PostsService } from './posts.service';
+import { UploadService } from '../uploads/upload.service'; // ✅ FIX PATH
+
 import { JwtAuthGuard } from '../../common/guards/jwt.guard';
 import { CurrentUser } from '../../common/decorators/user.decorator';
 
@@ -33,10 +35,13 @@ import { multerConfig } from '../../config/upload.config';
 @ApiTags('Posts')
 @Controller('posts')
 export class PostsController {
-  constructor(private readonly service: PostsService) {}
+  constructor(
+    private readonly service: PostsService,
+    private readonly uploadService: UploadService,
+  ) {}
 
   // ============================
-  // ✅ CREATE POST
+  // ✅ CREATE POST (UPLOAD MINIO)
   // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -48,57 +53,50 @@ export class PostsController {
         caption: { type: 'string' },
         images: {
           type: 'array',
-          items: { type: 'string', format: 'binary' },
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
         },
       },
     },
   })
   @HttpPost()
   @UseInterceptors(FilesInterceptor('images', 10, multerConfig))
-  create(
+  async create(
     @CurrentUser() user: any,
-    @UploadedFiles() files,
+    @UploadedFiles() files: Express.Multer.File[],
     @Body() dto: any,
   ) {
     if (!user) throw new UnauthorizedException();
 
-    const images = files?.map(f => f.filename) || [];
+    const uploadedImages = files?.length
+      ? await this.uploadService.uploadMultiple(files)
+      : [];
 
     return this.service.create(user.id, {
       ...dto,
-      images,
+      images: uploadedImages,
     });
   }
 
   // ============================
-  // ✅ FEED (🔥 INFINITE SCROLL)
+  // ✅ FEED (INFINITE SCROLL)
   // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Get feed (infinite scroll with cursor)',
   })
-  @ApiQuery({
-    name: 'cursor',
-    required: false,
-    description: 'ISO date cursor (createdAt)',
-  })
-  @ApiQuery({
-    name: 'limit',
-    required: false,
-    description: 'Number of posts (default 10)',
-  })
+  @ApiQuery({ name: 'cursor', required: false })
+  @ApiQuery({ name: 'limit', required: false })
   @Get('feed')
   feed(
     @CurrentUser() user: any,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: number,
   ) {
-    if (!user) {
-      throw new UnauthorizedException(
-        'Missing or invalid token',
-      );
-    }
+    if (!user) throw new UnauthorizedException();
 
     return this.service.getFeed(
       user.id,
@@ -120,7 +118,7 @@ export class PostsController {
   }
 
   // ============================
-  // ✅ GET POSTS BY USER
+  // ✅ POSTS BY USER
   // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -151,7 +149,6 @@ export class PostsController {
   // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get post detail' })
   @ApiParam({ name: 'id' })
   @Get(':id')
   findById(
@@ -194,3 +191,4 @@ export class PostsController {
     return this.service.delete(id, user.id);
   }
 }
+``

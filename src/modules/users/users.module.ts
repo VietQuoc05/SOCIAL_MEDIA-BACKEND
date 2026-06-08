@@ -8,6 +8,9 @@ import { Post } from '../../database/entities/post.entity';
 import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 
+// ✅ ADD
+import { UploadModule } from '../uploads/upload.module';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([
@@ -15,9 +18,11 @@ import { UsersController } from './users.controller';
       Follow,
       Post,
     ]),
+    UploadModule, // ✅ ADD
   ],
   providers: [UsersService],
   controllers: [UsersController],
   exports: [UsersService],
 })
 export class UsersModule {}
+``

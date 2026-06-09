@@ -1,16 +1,14 @@
 import {
-  BadRequestException,
   NotFoundException,
-  ForbiddenException,
   Injectable,
 } from '@nestjs/common';
+
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { Reaction } from '../../database/entities/reaction.entity';
 import { Post } from '../../database/entities/post.entity';
 import { Comment } from '../../database/entities/comment.entity';
-import { ReactionType } from '../../common/enums/reaction.enum';
 import { EventsGateway } from '../../events/events.gateway';
 
 @Injectable()
@@ -25,37 +23,48 @@ export class ReactionsService {
     @InjectRepository(Comment)
     private commentRepo: Repository<Comment>,
 
-    private gateway: EventsGateway, // ✅ realtime
+    private gateway: EventsGateway,
   ) {}
 
   // ============================
-  // ✅ REACT POST (+2 + REALTIME)
+  // ✅ TOGGLE POST LIKE ❤️
   // ============================
-  async reactPost(userId: string, postId: string, type: string) {
-    const reactionType = type as ReactionType;
-
-    if (!Object.values(ReactionType).includes(reactionType)) {
-      throw new BadRequestException('Invalid reaction type');
-    }
-
+  async togglePostReaction(userId: string, postId: string) {
     const existing = await this.repo.findOne({
-      where: { user: { id: userId }, post: { id: postId } },
+      where: {
+        user: { id: userId },
+        post: { id: postId },
+      },
+      relations: ['user', 'post'],
     });
 
+    // ✅ UNLIKE
     if (existing) {
-      existing.type = reactionType;
+      await this.repo.remove(existing);
 
-      const saved = await this.repo.save(existing);
+      await this.postRepo.decrement(
+        { id: postId },
+        'interactionScore',
+        2,
+      );
 
-      // ✅ realtime update
       this.gateway.emitReactionUpdate({
         postId,
-        type: saved.type,
-        action: 'updated',
+        action: 'removed',
       });
 
-      return saved;
+      return {
+        liked: false,
+      };
     }
+
+    // ✅ LIKE
+    const reaction = this.repo.create({
+      user: { id: userId },
+      post: { id: postId },
+    });
+
+    await this.repo.save(reaction);
 
     await this.postRepo.increment(
       { id: postId },
@@ -63,118 +72,35 @@ export class ReactionsService {
       2,
     );
 
-    const reaction = this.repo.create({
-      user: { id: userId },
-      post: { id: postId },
-      type: reactionType,
-    });
-
-    const saved = await this.repo.save(reaction);
-
-    // ✅ realtime emit
     this.gateway.emitReactionUpdate({
       postId,
-      type: saved.type,
       action: 'created',
     });
 
-    return saved;
+    return {
+      liked: true,
+    };
   }
 
   // ============================
-  // ✅ REMOVE POST REACTION (-2 + REALTIME)
+  // ✅ TOGGLE COMMENT LIKE ❤️
   // ============================
-  async removePostReaction(userId: string, postId: string) {
-    const result = await this.repo.delete({
-      user: { id: userId },
-      post: { id: postId },
-    });
-
-    if (result.affected) {
-      await this.postRepo.decrement(
-        { id: postId },
-        'interactionScore',
-        2,
-      );
-
-      // ✅ realtime emit
-      this.gateway.emitReactionUpdate({
-        postId,
-        action: 'removed',
-      });
-    }
-
-    return { message: 'Reaction removed' };
-  }
-
-  // ============================
-  // ✅ REACT COMMENT (+2 + REALTIME)
-  // ============================
-  async reactComment(
+  async toggleCommentReaction(
     userId: string,
     commentId: string,
-    type: string,
   ) {
-    const reactionType = type as ReactionType;
-
-    if (!Object.values(ReactionType).includes(reactionType)) {
-      throw new BadRequestException('Invalid reaction type');
-    }
-
     const existing = await this.repo.findOne({
-      where: { user: { id: userId }, comment: { id: commentId } },
+      where: {
+        user: { id: userId },
+        comment: { id: commentId },
+      },
+      relations: ['user', 'comment'],
     });
 
+    // ✅ UNLIKE
     if (existing) {
-      existing.type = reactionType;
+      await this.repo.remove(existing);
 
-      const saved = await this.repo.save(existing);
-
-      this.gateway.emitReactionUpdate({
-        commentId,
-        type: saved.type,
-        action: 'updated',
-      });
-
-      return saved;
-    }
-
-    await this.commentRepo.increment(
-      { id: commentId },
-      'interactionScore',
-      2,
-    );
-
-    const reaction = this.repo.create({
-      user: { id: userId },
-      comment: { id: commentId },
-      type: reactionType,
-    });
-
-    const saved = await this.repo.save(reaction);
-
-    this.gateway.emitReactionUpdate({
-      commentId,
-      type: saved.type,
-      action: 'created',
-    });
-
-    return saved;
-  }
-
-  // ============================
-  // ✅ REMOVE COMMENT REACTION (-2 + REALTIME)
-  // ============================
-  async removeCommentReaction(
-    userId: string,
-    commentId: string,
-  ) {
-    const result = await this.repo.delete({
-      user: { id: userId },
-      comment: { id: commentId },
-    });
-
-    if (result.affected) {
       await this.commentRepo.decrement(
         { id: commentId },
         'interactionScore',
@@ -185,48 +111,98 @@ export class ReactionsService {
         commentId,
         action: 'removed',
       });
+
+      return {
+        liked: false,
+      };
     }
 
-    return { message: 'Reaction removed' };
+    // ✅ LIKE
+    const reaction = this.repo.create({
+      user: { id: userId },
+      comment: { id: commentId },
+    });
+
+    await this.repo.save(reaction);
+
+    await this.commentRepo.increment(
+      { id: commentId },
+      'interactionScore',
+      2,
+    );
+
+    this.gateway.emitReactionUpdate({
+      commentId,
+      action: 'created',
+    });
+
+    return {
+      liked: true,
+    };
   }
 
   // ============================
-  // ✅ UPDATE REACTION (NO SCORE + REALTIME)
+  // ✅ REMOVE POST LIKE (OPTIONAL)
   // ============================
-  async updateReaction(
-    userId: string,
-    reactionId: string,
-    type: string,
-  ) {
-    const reactionType = type as ReactionType;
-
-    if (!Object.values(ReactionType).includes(reactionType)) {
-      throw new BadRequestException('Invalid reaction type');
-    }
-
-    const reaction = await this.repo.findOne({
-      where: { id: reactionId },
-      relations: ['user'],
+  async removePostReaction(userId: string, postId: string) {
+    const existing = await this.repo.findOne({
+      where: {
+        user: { id: userId },
+        post: { id: postId },
+      },
     });
 
-    if (!reaction) {
+    if (!existing) {
       throw new NotFoundException('Reaction not found');
     }
 
-    if (reaction.user.id !== userId) {
-      throw new ForbiddenException('No permission');
-    }
+    await this.repo.remove(existing);
 
-    reaction.type = reactionType;
-
-    const saved = await this.repo.save(reaction);
+    await this.postRepo.decrement(
+      { id: postId },
+      'interactionScore',
+      2,
+    );
 
     this.gateway.emitReactionUpdate({
-      id: reactionId,
-      type: saved.type,
-      action: 'updated',
+      postId,
+      action: 'removed',
     });
 
-    return saved;
+    return { liked: false };
+  }
+
+  // ============================
+  // ✅ REMOVE COMMENT LIKE (OPTIONAL)
+  // ============================
+  async removeCommentReaction(
+    userId: string,
+    commentId: string,
+  ) {
+    const existing = await this.repo.findOne({
+      where: {
+        user: { id: userId },
+        comment: { id: commentId },
+      },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Reaction not found');
+    }
+
+    await this.repo.remove(existing);
+
+    await this.commentRepo.decrement(
+      { id: commentId },
+      'interactionScore',
+      2,
+    );
+
+    this.gateway.emitReactionUpdate({
+      commentId,
+      action: 'removed',
+    });
+
+    return { liked: false };
   }
 }

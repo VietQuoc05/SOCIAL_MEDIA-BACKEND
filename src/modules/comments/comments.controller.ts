@@ -1,14 +1,12 @@
 import {
-  Controller,  
-  Delete,  
-  Body,
+  Controller,
+  Body,  
   Post,
   Param,
   UseGuards,
   Get,
   Patch,
-  UseInterceptors,
-  UploadedFile,
+  Delete,
 } from '@nestjs/common';
 
 import { CommentsService } from './comments.service';
@@ -19,12 +17,7 @@ import {
   ApiTags,
   ApiBearerAuth,
   ApiOperation,
-  ApiConsumes,
-  ApiBody,
 } from '@nestjs/swagger';
-
-import { FileInterceptor } from '@nestjs/platform-express';
-import { multerConfig } from '../../config/upload.config';
 
 @ApiTags('Comments')
 @UseGuards(JwtAuthGuard)
@@ -34,70 +27,29 @@ export class CommentsController {
   constructor(private readonly service: CommentsService) {}
 
   // ============================
-  // ✅ CREATE COMMENT
+  // ✅ CREATE COMMENT (TEXT ONLY)
   // ============================
   @ApiOperation({ summary: 'Create a comment' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        content: { type: 'string', example: 'Nice post!' },
-        image: { type: 'string', format: 'binary' },
-        parentId: { type: 'string', example: 'reply_id_optional' },
-      },
-    },
-  })
   @Post(':postId')
-  @UseInterceptors(FileInterceptor('image', multerConfig))
   create(
     @Param('postId') postId: string,
     @CurrentUser() user: any,
-    @UploadedFile() file,
     @Body() dto: any,
   ) {
-    const image = file?.filename;
-
-    return this.service.create(user.id, postId, {
-      ...dto,
-      ...(image && { image }),
-    });
+    return this.service.create(user.id, postId, dto);
   }
 
   // ============================
-  // ✅ UPDATE COMMENT 🔥
+  // ✅ UPDATE COMMENT
   // ============================
   @ApiOperation({ summary: 'Update comment' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        content: {
-          type: 'string',
-          example: 'Updated content',
-        },
-        image: {
-          type: 'string',
-          format: 'binary',
-        },
-      },
-    },
-  })
   @Patch(':id')
-  @UseInterceptors(FileInterceptor('image', multerConfig))
   update(
     @Param('id') id: string,
     @CurrentUser() user: any,
-    @UploadedFile() file,
     @Body() dto: any,
   ) {
-    const image = file?.filename;
-
-    return this.service.update(user.id, id, {
-      ...dto,
-      ...(image && { image }),
-    });
+    return this.service.update(user.id, id, dto);
   }
 
   // ============================
@@ -118,8 +70,11 @@ export class CommentsController {
   // ============================
   @ApiOperation({ summary: 'Get comments by post' })
   @Get('post/:postId')
-  getByPost(@Param('postId') postId: string) {
-    return this.service.getByPost(postId);
+  getByPost(
+    @Param('postId') postId: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.service.getByPost(postId, user?.id);
   }
 }
-  
+

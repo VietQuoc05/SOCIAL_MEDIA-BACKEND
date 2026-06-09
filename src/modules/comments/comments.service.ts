@@ -3,11 +3,13 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
+
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 
 import { Comment } from '../../database/entities/comment.entity';
 import { Post } from '../../database/entities/post.entity';
+import { Reaction } from '../../database/entities/reaction.entity';
 import { EventsGateway } from '../../events/events.gateway';
 
 @Injectable()
@@ -19,29 +21,37 @@ export class CommentsService {
     @InjectRepository(Post)
     private postRepo: Repository<Post>,
 
-    private gateway: EventsGateway, // ✅ inject realtime
+    @InjectRepository(Reaction)
+    private reactionRepo: Repository<Reaction>,
+
+    private gateway: EventsGateway,
   ) {}
 
   // ============================
-  // ✅ CREATE COMMENT (+1 + REALTIME)
+  // ✅ CREATE COMMENT
   // ============================
   async create(userId: string, postId: string, dto: any) {
-    const post = await this.postRepo.findOne({ where: { id: postId } });
+    const post = await this.postRepo.findOne({
+      where: { id: postId },
+    });
+
     if (!post) throw new NotFoundException('Post not found');
 
     const comment = this.repo.create({
       author: { id: userId },
       post: { id: postId },
       content: dto.content,
-      image: dto.image,
       parent: dto.parentId ? { id: dto.parentId } : null,
     });
 
-    await this.postRepo.increment({ id: postId }, 'interactionScore', 1);
+    await this.postRepo.increment(
+      { id: postId },
+      'interactionScore',
+      1,
+    );
 
     const saved = await this.repo.save(comment);
 
-    // ✅ REALTIME EMIT
     this.gateway.emitNewComment(saved);
 
     return saved;
@@ -56,25 +66,21 @@ export class CommentsService {
       relations: ['author'],
     });
 
-    if (!comment) throw new NotFoundException('Comment not found');
+    if (!comment) throw new NotFoundException();
 
     if (comment.author.id !== userId) {
-      throw new ForbiddenException('No permission');
+      throw new ForbiddenException();
     }
 
     if (dto.content !== undefined) {
       comment.content = dto.content;
     }
 
-    if (dto.image !== undefined) {
-      comment.image = dto.image;
-    }
-
     return this.repo.save(comment);
   }
 
   // ============================
-  // ✅ DELETE COMMENT (-1 + REALTIME)
+  // ✅ DELETE COMMENT
   // ============================
   async delete(userId: string, commentId: string, postId: string) {
     const comment = await this.repo.findOne({
@@ -82,13 +88,13 @@ export class CommentsService {
       relations: ['author', 'post', 'post.author'],
     });
 
-    if (!comment) throw new NotFoundException('Comment not found');
+    if (!comment) throw new NotFoundException();
 
     if (
       comment.author.id !== userId &&
       comment.post.author.id !== userId
     ) {
-      throw new ForbiddenException('No permission');
+      throw new ForbiddenException();
     }
 
     await this.repo.delete(commentId);
@@ -99,7 +105,6 @@ export class CommentsService {
       1,
     );
 
-    // ✅ REALTIME EMIT
     this.gateway.emitNewComment({
       deleted: true,
       commentId,
@@ -110,35 +115,21 @@ export class CommentsService {
   }
 
   // ============================
-  // ✅ BUILD REACTION SUMMARY
+  // ✅ REACTION SUMMARY ❤️ ONLY
   // ============================
-  private buildReactionSummary(reactions: any[], userId?: string) {
-    const counts: Record<string, number> = {};
-    let myReaction: string | null = null;
+  private buildReactionSummary(
+    reactions: Reaction[],
+    userId?: string,
+  ) {
+    const totalReactions = reactions.length;
 
-    reactions.forEach(r => {
-      counts[r.type] = (counts[r.type] || 0) + 1;
-
-      if (userId && r.user?.id === userId) {
-        myReaction = r.type;
-      }
-    });
-
-    const totalReactions = Object.values(counts).reduce(
-      (a, b) => a + b,
-      0,
-    );
-
-    const topReactions = Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([type]) => type);
+    const isLiked = userId
+      ? reactions.some(r => r.user?.id === userId)
+      : false;
 
     return {
-      reactions: counts,
       totalReactions,
-      topReactions,
-      myReaction,
+      isLiked,
     };
   }
 
@@ -155,7 +146,7 @@ export class CommentsService {
       .where('comment.postId = :postId', { postId })
       .getMany();
 
-    const map = new Map();
+    const map = new Map<string, any>();
 
     comments.forEach(c => {
       const summary = this.buildReactionSummary(
@@ -166,7 +157,6 @@ export class CommentsService {
       map.set(c.id, {
         id: c.id,
         content: c.content,
-        image: c.image,
         author: c.author,
         createdAt: c.createdAt,
         ...summary,
@@ -186,7 +176,10 @@ export class CommentsService {
       }
     });
 
-    tree.sort((a, b) => b.totalReactions - a.totalReactions);
+    // ✅ sort by like ❤️
+    tree.sort(
+      (a, b) => b.totalReactions - a.totalReactions,
+    );
 
     return tree;
   }

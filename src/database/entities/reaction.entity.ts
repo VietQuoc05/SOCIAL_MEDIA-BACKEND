@@ -1,7 +1,6 @@
 import {
   Entity,
   PrimaryGeneratedColumn,
-  Column,
   ManyToOne,
   CreateDateColumn,
   Unique,
@@ -11,18 +10,17 @@ import {
 import { User } from './user.entity';
 import { Post } from './post.entity';
 import { Comment } from './comment.entity';
-import { ReactionType } from '../../common/enums/reaction.enum';
 
 @Entity('reactions')
 
-// ✅ 1 USER chỉ react 1 POST
+// ✅ mỗi user chỉ like 1 post
 @Unique(['user', 'post'])
 
-// ✅ 1 USER chỉ react 1 COMMENT
+// ✅ mỗi user chỉ like 1 comment
 @Unique(['user', 'comment'])
 export class Reaction {
   // ============================
-  // ✅ PRIMARY KEY
+  // ✅ ID
   // ============================
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -57,17 +55,10 @@ export class Reaction {
   comment: Comment | null;
 
   // ============================
-  // ✅ TYPE (LIKE / LOVE / ...)
-  // ============================
-  @Column({
-    type: 'enum',
-    enum: ReactionType,
-  })
-  type: ReactionType;
-
-  // ============================
   // ✅ CREATED TIME
   // ============================
   @CreateDateColumn()
+  @Index()
   createdAt: Date;
 }
+``

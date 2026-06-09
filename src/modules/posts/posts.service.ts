@@ -131,38 +131,21 @@ export class PostsService {
   }
 
   // ============================
-  // ✅ REACTION SUMMARY
+  // ✅ REACTION SUMMARY (🔥 SIMPLIFIED)
   // ============================
   private buildReactionSummary(
     reactions: Reaction[],
     userId?: string,
   ) {
-    const counts: Record<string, number> = {};
-    let myReaction: string | null = null;
+    const totalReactions = reactions.length;
 
-    reactions.forEach(r => {
-      counts[r.type] = (counts[r.type] || 0) + 1;
-
-      if (userId && r.user?.id === userId) {
-        myReaction = r.type;
-      }
-    });
-
-    const totalReactions = Object.values(counts).reduce(
-      (a, b) => a + b,
-      0,
-    );
-
-    const topReactions = Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([type]) => type);
+    const isLiked = userId
+      ? reactions.some(r => r.user?.id === userId)
+      : false;
 
     return {
-      reactions: counts,
       totalReactions,
-      topReactions,
-      myReaction,
+      isLiked,
     };
   }
 
@@ -194,7 +177,7 @@ export class PostsService {
   }
 
   // ============================
-  // ✅ FEED (🔥 INFINITE SCROLL)
+  // ✅ FEED (INFINITE SCROLL)
   // ============================
   async getFeed(
     userId: string,
@@ -211,7 +194,6 @@ export class PostsService {
         date: oneWeekAgo,
       });
 
-    // ✅ cursor-based pagination
     if (cursor) {
       qb.andWhere('post.createdAt < :cursor', {
         cursor: new Date(cursor),
@@ -224,7 +206,6 @@ export class PostsService {
 
     const posts = await qb.getMany();
 
-    // ✅ fetch reactions
     let reactions: Reaction[] = [];
 
     if (posts.length > 0) {
@@ -298,3 +279,4 @@ export class PostsService {
     return this.attachSummary(posts, reactions, currentUserId);
   }
 }
+``

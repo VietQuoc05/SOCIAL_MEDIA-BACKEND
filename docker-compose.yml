@@ -32,8 +32,8 @@ services:
       dockerfile: Dockerfile
     container_name: soc-backend
     restart: always
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     depends_on:
       - postgres
       - minio
@@ -46,16 +46,29 @@ services:
       dockerfile: Dockerfile
     container_name: soc-frontend
     restart: always
-    ports:
-      - "3001:3000"
+    expose:
+      - "3000"
     depends_on:
       - backend
     environment:
-      - NEXT_PUBLIC_API_URL=http://backend:3000
-      - NEXT_PUBLIC_SOCKET_URL=http://backend:3000
+      - NEXT_PUBLIC_API_URL=/api
+      - NEXT_PUBLIC_SOCKET_URL=/socket.io
       - NEXT_PUBLIC_MINIO_ENDPOINT=minio
       - NEXT_PUBLIC_MINIO_PORT=9000
       - NEXT_PUBLIC_MINIO_BUCKET=social
+
+  nginx:
+    image: nginx:alpine
+    container_name: soc-nginx
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+    depends_on:
+      - frontend
+      - backend
+      - minio
 
   pgadmin:
     image: dpage/pgadmin4

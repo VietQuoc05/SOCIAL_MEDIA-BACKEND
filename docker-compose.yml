@@ -40,6 +40,23 @@ services:
     env_file:
       - .env
 
+  frontend:
+    build:
+      context: ../social-frontend
+      dockerfile: Dockerfile
+    container_name: soc-frontend
+    restart: always
+    ports:
+      - "3001:3000"
+    depends_on:
+      - backend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:3000
+      - NEXT_PUBLIC_SOCKET_URL=http://backend:3000
+      - NEXT_PUBLIC_MINIO_ENDPOINT=minio
+      - NEXT_PUBLIC_MINIO_PORT=9000
+      - NEXT_PUBLIC_MINIO_BUCKET=social
+
   pgadmin:
     image: dpage/pgadmin4
     container_name: soc-pgadmin

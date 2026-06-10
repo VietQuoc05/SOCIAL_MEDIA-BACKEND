@@ -5,6 +5,7 @@ import {
   Param,
   UseGuards,
   Get,
+  Query,
 } from '@nestjs/common';
 
 import { FollowService } from './follow.service';
@@ -19,50 +20,35 @@ import {
 
 @ApiTags('Follow')
 @UseGuards(JwtAuthGuard)
-@ApiBearerAuth() // ✅ QUAN TRỌNG
+@ApiBearerAuth()
 @Controller('follow')
 export class FollowController {
   constructor(private readonly service: FollowService) {}
 
-  // ============================
-  // ✅ GET FOLLOWERS
-  // ============================
   @ApiOperation({ summary: 'Get followers' })
   @Get('followers')
-  followers(@CurrentUser() user: any) {
-    return this.service.getFollowers(user.id);
+  followers(@CurrentUser() user: any, @Query('userId') userId?: string) {
+    return this.service.getFollowers(userId || user.id);
   }
 
-  // ============================
-  // ✅ GET FOLLOWING
-  // ============================
   @ApiOperation({ summary: 'Get following' })
   @Get('following')
-  following(@CurrentUser() user: any) {
-    return this.service.getFollowing(user.id);
+  following(@CurrentUser() user: any, @Query('userId') userId?: string) {
+    return this.service.getFollowing(userId || user.id);
   }
 
-  // ============================
-  // ✅ FOLLOW STATS 🔥
-  // ============================
   @ApiOperation({ summary: 'Get follow stats' })
   @Get('stats')
-  stats(@CurrentUser() user: any) {
-    return this.service.getFollowStats(user.id);
+  stats(@CurrentUser() user: any, @Query('userId') userId?: string) {
+    return this.service.getFollowStats(userId || user.id);
   }
 
-  // ============================
-  // ✅ FOLLOW USER
-  // ============================
   @ApiOperation({ summary: 'Follow user' })
   @Post(':id')
   follow(@Param('id') id: string, @CurrentUser() user: any) {
     return this.service.follow(user.id, id);
   }
 
-  // ============================
-  // ✅ UNFOLLOW USER
-  // ============================
   @ApiOperation({ summary: 'Unfollow user' })
   @Delete(':id')
   unfollow(@Param('id') id: string, @CurrentUser() user: any) {

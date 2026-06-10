@@ -44,6 +44,12 @@ services:
     build:
       context: ../social-frontend
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: /api
+        NEXT_PUBLIC_SOCKET_URL: /socket.io
+        NEXT_PUBLIC_MINIO_ENDPOINT: localhost
+        NEXT_PUBLIC_MINIO_PORT: "9000"
+        NEXT_PUBLIC_MINIO_BUCKET: social
     container_name: soc-frontend
     restart: always
     expose:
@@ -53,7 +59,7 @@ services:
     environment:
       - NEXT_PUBLIC_API_URL=/api
       - NEXT_PUBLIC_SOCKET_URL=/socket.io
-      - NEXT_PUBLIC_MINIO_ENDPOINT=minio
+      - NEXT_PUBLIC_MINIO_ENDPOINT=localhost
       - NEXT_PUBLIC_MINIO_PORT=9000
       - NEXT_PUBLIC_MINIO_BUCKET=social
 

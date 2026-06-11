@@ -1,14 +1,10 @@
 import {
   Controller,
   Post,
-  UploadedFile,
-  UseInterceptors,
+  Body,
   UseGuards,
 } from '@nestjs/common';
-
-import { FileInterceptor } from '@nestjs/platform-express';
 import { UploadService } from './upload.service';
-import { multerConfig } from '../../config/upload.config';
 import { JwtAuthGuard } from '../../common/guards/jwt.guard';
 import { CurrentUser } from '../../common/decorators/user.decorator';
 
@@ -17,9 +13,12 @@ import { CurrentUser } from '../../common/decorators/user.decorator';
 export class UploadController {
   constructor(private readonly service: UploadService) {}
 
-  @Post()
-  @UseInterceptors(FileInterceptor('file', multerConfig))
-  upload(@CurrentUser() user: any, @UploadedFile() file: Express.Multer.File) {
-    return this.service.uploadFile(file);
+  @Post('presign')
+  getPresignedUrl(
+    @CurrentUser() user: any,
+    @Body('fileName') fileName: string,
+    @Body('contentType') contentType: string,
+  ) {
+    return this.service.getPresignedPutUrl(fileName, contentType);
   }
 }

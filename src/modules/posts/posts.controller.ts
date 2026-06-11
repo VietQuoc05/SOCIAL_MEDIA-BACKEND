@@ -7,14 +7,14 @@ import {
   Param,
   Body,
   UseGuards,
-  UseInterceptors,
-  UploadedFiles,
-  UnauthorizedException,
   Query,
+  UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 
 import { PostsService } from './posts.service';
-import { UploadService } from '../uploads/upload.service'; // ✅ FIX PATH
+import { UploadService } from '../uploads/upload.service';
+import { S3Service } from '../uploads/s3.service';
 
 import { JwtAuthGuard } from '../../common/guards/jwt.guard';
 import { CurrentUser } from '../../common/decorators/user.decorator';
@@ -29,65 +29,43 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 
-import { FilesInterceptor } from '@nestjs/platform-express';
-import { multerConfig } from '../../config/upload.config';
-
 @ApiTags('Posts')
 @Controller('posts')
 export class PostsController {
   constructor(
     private readonly service: PostsService,
     private readonly uploadService: UploadService,
+    private readonly s3Service: S3Service,
   ) {}
 
-  // ============================
-  // ✅ CREATE POST (UPLOAD MINIO)
-  // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        caption: { type: 'string' },
-        images: {
-          type: 'array',
-          items: {
-            type: 'string',
-            format: 'binary',
-          },
-        },
-      },
-    },
-  })
+  @ApiOperation({ summary: 'Tạo post mới với upload ảnh qua presigned URL' })
   @HttpPost()
-  @UseInterceptors(FilesInterceptor('images', 10, multerConfig))
   async create(
     @CurrentUser() user: any,
-    @UploadedFiles() files: Express.Multer.File[],
-    @Body() dto: any,
+    @Body() dto: { caption: string; images: string[] },
   ) {
     if (!user) throw new UnauthorizedException();
 
-    const uploadedImages = files?.length
-      ? await this.uploadService.uploadMultiple(files)
-      : [];
+    if (!dto.caption) {
+      throw new BadRequestException('Caption is required');
+    }
 
-    return this.service.create(user.id, {
-      ...dto,
-      images: uploadedImages,
-    });
+    if (!Array.isArray(dto.images) || dto.images.length === 0) {
+      throw new BadRequestException('At least one image is required');
+    }
+
+    if (dto.images.length > 10) {
+      throw new BadRequestException('Max 10 images allowed');
+    }
+
+    return this.service.create(user.id, dto);
   }
 
-  // ============================
-  // ✅ FEED (INFINITE SCROLL)
-  // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({
-    summary: 'Get feed (infinite scroll with cursor)',
-  })
+  @ApiOperation({ summary: 'Get feed (infinite scroll with cursor)' })
   @ApiQuery({ name: 'cursor', required: false })
   @ApiQuery({ name: 'limit', required: false })
   @Get('feed')
@@ -105,9 +83,6 @@ export class PostsController {
     );
   }
 
-  // ============================
-  // ✅ GET MY POSTS
-  // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Get('me')
@@ -117,9 +92,6 @@ export class PostsController {
     return this.service.findByUser(user.id, user.id);
   }
 
-  // ============================
-  // ✅ POSTS BY USER
-  // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Get('user/:id')
@@ -132,9 +104,6 @@ export class PostsController {
     return this.service.findByUser(id, user.id);
   }
 
-  // ============================
-  // ✅ GET ALL POSTS
-  // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Get()
@@ -144,9 +113,6 @@ export class PostsController {
     return this.service.findAll(user.id);
   }
 
-  // ============================
-  // ✅ GET POST DETAIL
-  // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiParam({ name: 'id' })
@@ -160,25 +126,23 @@ export class PostsController {
     return this.service.findById(id, user.id);
   }
 
-  // ============================
-  // ✅ UPDATE POST
-  // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Patch(':id')
   update(
     @Param('id') id: string,
     @CurrentUser() user: any,
-    @Body() dto: any,
+    @Body() dto: { caption?: string; images?: string[] },
   ) {
     if (!user) throw new UnauthorizedException();
+
+    if (dto.images) {
+      dto.images = dto.images.map(key => this.s3Service.getPublicUrl(key));
+    }
 
     return this.service.update(id, user.id, dto);
   }
 
-  // ============================
-  // ✅ DELETE POST
-  // ============================
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Delete(':id')
@@ -191,4 +155,3 @@ export class PostsController {
     return this.service.delete(id, user.id);
   }
 }
-``

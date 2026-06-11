@@ -26,5 +26,3 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 CMD ["node", "dist/main.js"]
-
-# BUILD_DUMMY_20250611

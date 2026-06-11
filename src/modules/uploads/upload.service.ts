@@ -6,25 +6,36 @@ export class UploadService implements OnModuleInit {
   private bucket = process.env.MINIO_BUCKET || 'social';
 
   async onModuleInit() {
-    const exists = await MinioClient.bucketExists(this.bucket);
-
-    if (!exists) {
-      await MinioClient.makeBucket(this.bucket);
+    try {
+      const exists = await MinioClient.bucketExists(this.bucket);
+      if (!exists) {
+        await MinioClient.makeBucket(this.bucket);
+        console.log(`✅ Bucket "${this.bucket}" created`);
+      } else {
+        console.log(`ℹ️  Bucket "${this.bucket}" already exists`);
+      }
+    } catch (err: any) {
+      console.warn(`⚠️  Bucket check/create skipped: ${err?.message || err}`);
     }
 
-    const policy = JSON.stringify({
-      Version: '2012-10-17',
-      Statement: [
-        {
-          Effect: 'Allow',
-          Principal: { '*': '*' },
-          Action: ['s3:GetObject'],
-          Resource: [`arn:aws:s3:::${this.bucket}/*`],
-        },
-      ],
-    });
-    await MinioClient.setBucketPolicy(this.bucket, policy);
-    console.log(`✅ Bucket "${this.bucket}" created and set to public read`);
+    try {
+      const policy = JSON.stringify({
+        Version: '2012-10-17',
+        Statement: [
+          {
+            Effect: 'Allow',
+            Principal: { '*': '*' },
+            Action: ['s3:GetObject'],
+            Resource: [`arn:aws:s3:::${this.bucket}/*`],
+          },
+        ],
+      });
+      await MinioClient.setBucketPolicy(this.bucket, policy);
+      console.log(`✅ Bucket "${this.bucket}" set to public read`);
+    } catch (err: any) {
+      console.warn(`⚠️  Bucket policy skipped: ${err?.message || err}`);
+      console.warn(`   Không sao nếu bucket đã public hoặc endpoint không hỗ trợ setBucketPolicy`);
+    }
   }
 
   // ✅ UPLOAD 1 FILE

@@ -41,18 +41,22 @@ export class UploadService implements OnModuleInit {
   // ✅ UPLOAD 1 FILE
   async uploadFile(file: Express.Multer.File) {
     const fileName = `${Date.now()}-${file.originalname}`;
-
-    await MinioClient.putObject(
-      this.bucket,
-      fileName,
-      file.buffer,
-      file.size,
-      {
-        'Content-Type': file.mimetype,
-      },
-    );
-
-    return fileName;
+    try {
+      await MinioClient.putObject(
+        this.bucket,
+        fileName,
+        file.buffer,
+        file.size,
+        {
+          'Content-Type': file.mimetype,
+        },
+      );
+      return fileName;
+    } catch (err: any) {
+      const msg = err?.message || String(err);
+      console.error(`❌ Upload failed: bucket=${this.bucket}, file=${fileName}, error=${msg}`);
+      throw new Error(`Upload failed: ${msg}`);
+    }
   }
 
   // ✅ UPLOAD MULTIPLE

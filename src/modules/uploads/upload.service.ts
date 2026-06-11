@@ -64,6 +64,10 @@ export class UploadService implements OnModuleInit {
 
   // ✅ GET FULL URL
   getFileUrl(fileName: string) {
+    const publicUrl = process.env.MINIO_PUBLIC_URL;
+    if (publicUrl) {
+      return `${publicUrl}/${fileName}`;
+    }
     const useSSL = process.env.MINIO_USE_SSL === 'true';
     const protocol = useSSL ? 'https' : 'http';
     const host = process.env.MINIO_ENDPOINT;

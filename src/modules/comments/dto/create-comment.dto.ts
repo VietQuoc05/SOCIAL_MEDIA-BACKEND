@@ -10,7 +10,7 @@ export class CreateCommentDto {
   content: string;
 
   @ApiProperty({
-    example: 'http://localhost:9000/social/comment.jpg',
+    example: '/social/comment.jpg',
     required: false,
   })
   @IsOptional()

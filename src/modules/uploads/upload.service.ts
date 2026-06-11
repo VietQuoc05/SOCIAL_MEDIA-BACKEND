@@ -11,6 +11,20 @@ export class UploadService implements OnModuleInit {
     if (!exists) {
       await MinioClient.makeBucket(this.bucket);
     }
+
+    const policy = JSON.stringify({
+      Version: '2012-10-17',
+      Statement: [
+        {
+          Effect: 'Allow',
+          Principal: { '*': '*' },
+          Action: ['s3:GetObject'],
+          Resource: [`arn:aws:s3:::${this.bucket}/*`],
+        },
+      ],
+    });
+    await MinioClient.setBucketPolicy(this.bucket, policy);
+    console.log(`✅ Bucket "${this.bucket}" created and set to public read`);
   }
 
   // ✅ UPLOAD 1 FILE
@@ -39,7 +53,9 @@ export class UploadService implements OnModuleInit {
 
   // ✅ GET FULL URL
   getFileUrl(fileName: string) {
-    return `http://${process.env.MINIO_ENDPOINT}:${process.env.MINIO_PORT}/${this.bucket}/${fileName}`;
+    const useSSL = process.env.MINIO_USE_SSL === 'true';
+    const protocol = useSSL ? 'https' : 'http';
+    const host = process.env.MINIO_ENDPOINT;
+    return `${protocol}://${host}/${this.bucket}/${fileName}`;
   }
 }
-``

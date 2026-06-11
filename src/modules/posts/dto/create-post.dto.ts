@@ -16,8 +16,8 @@ export class CreatePostDto {
 
   @ApiProperty({
     example: [
-      'http://localhost:9000/social/image1.jpg',
-      'http://localhost:9000/social/image2.jpg',
+      '/social/image1.jpg',
+      '/social/image2.jpg',
     ],
     description: 'Danh sách URL ảnh (tối đa 10 ảnh)',
     type: [String],

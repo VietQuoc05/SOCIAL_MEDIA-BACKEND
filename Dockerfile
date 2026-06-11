@@ -26,3 +26,5 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 CMD ["node", "dist/main.js"]
+
+# cache-bust: do not remove this line - forces rebuild on every deploy

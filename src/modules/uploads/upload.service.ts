@@ -53,9 +53,15 @@ export class UploadService implements OnModuleInit {
       );
       return fileName;
     } catch (err: any) {
+      const code = err?.code || err?.name || 'UNKNOWN';
+      const status = err?.statusCode || err?.status || '';
       const msg = err?.message || String(err);
-      console.error(`❌ Upload failed: bucket=${this.bucket}, file=${fileName}, error=${msg}`);
-      throw new Error(`Upload failed: ${msg}`);
+      console.error(`❌ Upload failed: bucket=${this.bucket}, file=${fileName}`);
+      console.error(`   code=${code}, status=${status}, message=${msg}`);
+      if (err?.$response?.body) {
+        console.error(`   S3 body: ${JSON.stringify(err.$response.body).slice(0, 500)}`);
+      }
+      throw new Error(`Upload failed [${code}]: ${msg}`);
     }
   }
 

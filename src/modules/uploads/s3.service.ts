@@ -18,7 +18,7 @@ export class S3Service {
     const key = `${Date.now()}-${fileName}`;
 
     const response = await fetch(
-      `${this.supabaseUrl}/storage/v1/object/sign/${this.bucket}/${key}`,
+      `${this.supabaseUrl}/storage/v1/upload/sign/${this.bucket}/${key}`,
       {
         method: 'POST',
         headers: {
@@ -35,7 +35,7 @@ export class S3Service {
     }
 
     const data = await response.json();
-    return { key, url: data.signedUrl };
+    return { key, url: data.signedUrl || data.url };
   }
 
   async getPresignedGetUrl(fileName: string, expiresIn = 3600) {

@@ -44,13 +44,9 @@ export class PostsController {
   @HttpPost()
   async create(
     @CurrentUser() user: any,
-    @Body() dto: { caption: string; images: string[] },
+    @Body() dto: { caption?: string; images: string[] },
   ) {
     if (!user) throw new UnauthorizedException();
-
-    if (!dto.caption) {
-      throw new BadRequestException('Caption is required');
-    }
 
     if (!Array.isArray(dto.images) || dto.images.length === 0) {
       throw new BadRequestException('At least one image is required');

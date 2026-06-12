@@ -18,7 +18,7 @@ export class S3Service {
     const key = `${Date.now()}-${fileName}`;
 
     const response = await fetch(
-      `${this.supabaseUrl}/storage/v1/upload/sign/${this.bucket}/${key}`,
+      `${this.supabaseUrl}/storage/v1/object/upload/sign/${this.bucket}/${key}`,
       {
         method: 'POST',
         headers: {

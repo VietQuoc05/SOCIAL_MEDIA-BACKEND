@@ -14,11 +14,10 @@ export class UploadController {
   constructor(private readonly service: UploadService) {}
 
   @Post('presign')
-  getPresignedUrl(
+  async getPresignedUrl(
     @CurrentUser() user: any,
-    @Body('fileName') fileName: string,
-    @Body('contentType') contentType: string,
+    @Body() body: { fileName: string; contentType: string },
   ) {
-    return this.service.getPresignedPutUrl(fileName, contentType);
+    return this.service.getPresignedPutUrl(body.fileName, body.contentType);
   }
 }

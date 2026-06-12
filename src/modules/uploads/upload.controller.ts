@@ -19,9 +19,12 @@ export class UploadController {
     @Body() body: { fileName: string; contentType: string },
   ) {
     try {
-      return await this.service.getPresignedPutUrl(body.fileName, body.contentType);
+      const result = await this.service.getPresignedPutUrl(body.fileName, body.contentType);
+      console.log('Presigned URL result:', result);
+      return result;
     } catch (error: any) {
-      return { error: error.message, stack: error.stack };
+      console.error('Presigned URL error:', error.message, error.stack);
+      return { error: error.message };
     }
   }
 }

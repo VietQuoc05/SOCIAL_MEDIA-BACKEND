@@ -35,7 +35,8 @@ export class S3Service {
     }
 
     const data = await response.json();
-    return { key, url: data.signedUrl || data.url };
+    const signedUrl = data.signedUrl || data.url;
+    return { key, url: signedUrl.startsWith('http') ? signedUrl : `${this.supabaseUrl}${signedUrl}` };
   }
 
   async getPresignedGetUrl(fileName: string, expiresIn = 3600) {
@@ -57,6 +58,7 @@ export class S3Service {
     }
 
     const data = await response.json();
-    return data.signedUrl;
+    const signedUrl = data.signedUrl || data.url;
+    return signedUrl.startsWith('http') ? signedUrl : `${this.supabaseUrl}${signedUrl}`;
   }
 }

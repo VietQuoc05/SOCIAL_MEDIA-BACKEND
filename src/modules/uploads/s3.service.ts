@@ -18,14 +18,14 @@ export class S3Service {
     const key = `${Date.now()}-${fileName}`;
 
     const response = await fetch(
-      `${this.supabaseUrl}/storage/v1/object/upload/sign/${this.bucket}/${key}`,
+      `${this.supabaseUrl}/storage/v1/object/sign/${this.bucket}/${key}`,
       {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${this.supabaseKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ expiresIn }),
+        body: JSON.stringify({ expiresIn, contentType }),
       }
     );
 

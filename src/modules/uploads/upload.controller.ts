@@ -18,6 +18,10 @@ export class UploadController {
     @CurrentUser() user: any,
     @Body() body: { fileName: string; contentType: string },
   ) {
-    return this.service.getPresignedPutUrl(body.fileName, body.contentType);
+    try {
+      return await this.service.getPresignedPutUrl(body.fileName, body.contentType);
+    } catch (error: any) {
+      return { error: error.message, stack: error.stack };
+    }
   }
 }

@@ -1,4 +1,4 @@
-import { NestFactory } from '@nestjs/core';
+﻿import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
@@ -9,8 +9,16 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const port = parseInt(process.env.PORT || '3000', 10);
 
+  const allowedOrigins = process.env.CORS_ORIGIN?.split(',').map(o => o.trim()) || [];
+
   app.enableCors({
-    origin: process.env.CORS_ORIGIN?.split(',').map(o => o.trim()) || '*',
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+      if (!origin || allowedOrigins.includes(origin) || origin.startsWith('capacitor://') || origin.startsWith('file://') || origin.includes('localhost') || origin.includes('127.0.0.1')) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
   });
 
@@ -50,9 +58,9 @@ async function bootstrap() {
   await app.listen(port);
 
   const displayHost = process.env.CORS_ORIGIN?.split(',')[0]?.replace(/^https?:\/\//, '') || 'localhost';
-  console.log(`✅ Server running on: http://${displayHost}:${port}`);
-  console.log(`✅ Swagger: http://${displayHost}:${port}/api`);
-  console.log(`✅ Health: http://${displayHost}:${port}/health`);
+  console.log(`Server running on: http://${displayHost}:${port}`);
+  console.log(`Swagger: http://${displayHost}:${port}/api`);
+  console.log(`Health: http://${displayHost}:${port}/health`);
 }
 
 bootstrap();

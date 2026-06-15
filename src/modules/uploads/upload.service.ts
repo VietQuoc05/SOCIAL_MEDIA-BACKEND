@@ -28,10 +28,29 @@ export class UploadService {
     return map[mimetype] || '';
   }
 
+  private sanitizeFileName(name: string | undefined): string {
+    if (!name || name.trim() === '') return 'file';
+    let clean = name.trim();
+    if (clean.includes('://')) {
+      clean = clean.split('/').pop() || clean;
+    }
+    if (clean.includes('%')) {
+      clean = decodeURIComponent(clean);
+    }
+    clean = clean.replace(/[^a-zA-Z0-9._-]/g, '_');
+    if (!clean || clean === '.') clean = 'file';
+    const lastDot = clean.lastIndexOf('.');
+    if (lastDot === -1) return clean;
+    const namePart = clean.substring(0, lastDot);
+    const extPart = clean.substring(lastDot);
+    const sanitizedName = namePart.replace(/[^a-zA-Z0-9_-]/g, '_') || 'file';
+    return sanitizedName + extPart;
+  }
+
   async uploadFileToStorage(file: Express.Multer.File) {
     const ext = this.getExtensionFromMime(file.mimetype);
-    const baseName = file.originalname?.trim() || `file`;
-    const key = `${Date.now()}-${baseName}${ext}`;
+    const sanitized = this.sanitizeFileName(file.originalname);
+    const key = `${Date.now()}-${sanitized}${ext}`;
     const bucket = this.s3Service.getBucketName();
     const supabaseUrl = process.env.SUPABASE_URL || '';
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';

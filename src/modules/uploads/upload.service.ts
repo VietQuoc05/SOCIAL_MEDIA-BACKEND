@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+﻿import { Injectable } from '@nestjs/common';
 import { S3Service } from './s3.service';
 
 @Injectable()
@@ -13,8 +13,25 @@ export class UploadService {
     return this.s3Service.getPublicUrl(fileName);
   }
 
+  private getExtensionFromMime(mimetype: string): string {
+    const map: Record<string, string> = {
+      'image/jpeg': '.jpg',
+      'image/jpg': '.jpg',
+      'image/png': '.png',
+      'image/gif': '.gif',
+      'image/webp': '.webp',
+      'image/heic': '.heic',
+      'image/heif': '.heif',
+      'image/bmp': '.bmp',
+      'image/tiff': '.tiff',
+    };
+    return map[mimetype] || '';
+  }
+
   async uploadFileToStorage(file: Express.Multer.File) {
-    const key = `${Date.now()}-${file.originalname}`;
+    const ext = this.getExtensionFromMime(file.mimetype);
+    const baseName = file.originalname?.trim() || `file`;
+    const key = `${Date.now()}-${baseName}${ext}`;
     const bucket = this.s3Service.getBucketName();
     const supabaseUrl = process.env.SUPABASE_URL || '';
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';

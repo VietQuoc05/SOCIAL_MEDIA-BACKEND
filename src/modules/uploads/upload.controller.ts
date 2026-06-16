@@ -17,12 +17,15 @@ export class UploadController {
   @Post('presign')
   async getPresignedUrl(
     @CurrentUser() user: any,
-    @Body() body: { fileName: string; contentType: string },
+    @Request() req: Request,
+    @Res() res: Response,
   ) {
     try {
-      const result = await this.service.getPresignedPutUrl(body.fileName, body.contentType);
-      return result;
+      const body = req.body as { fileName?: string; contentType?: string };
+      const result = await this.service.getPresignedPutUrl(body.fileName || '', body.contentType || '');
+      return res.json(result);
     } catch (error: any) {
+      console.error('Presigned URL error:', error);
       throw new BadRequestException(error.message);
     }
   }
@@ -30,7 +33,7 @@ export class UploadController {
   @Post('file')
   async uploadFile(
     @CurrentUser() user: any,
-    @Req() req: Request,
+    @Request() req: Request,
     @Res() res: Response,
   ) {
     const contentType = req.headers['content-type'] as string;
@@ -113,7 +116,7 @@ export class UploadController {
     });
 
     req.on('error', (err) => {
-      console.error('Request error:', err);
+      console.error('Request stream error:', err);
       return res.status(400).json({ error: 'Request reading failed' });
     });
   }

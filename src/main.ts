@@ -39,23 +39,6 @@ async function bootstrap() {
 
   const expressApp = app.getHttpAdapter().getInstance() as import('express').Express;
 
-  expressApp.use((req: any, res, next) => {
-    if (req.is('multipart/form-data')) {
-      const chunks: Buffer[] = [];
-      req.on('data', (chunk: Buffer) => chunks.push(chunk));
-      req.on('end', () => {
-        req.buffer = Buffer.concat(chunks);
-        next();
-      });
-      req.on('error', (err: Error) => {
-        console.error('Raw body middleware error:', err);
-        res.status(400).json({ error: 'Request reading failed' });
-      });
-    } else {
-      next();
-    }
-  });
-
   expressApp.get('/health', (_req: import('express').Request, res: import('express').Response) => {
     res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
   });

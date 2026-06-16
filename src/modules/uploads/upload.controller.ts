@@ -3,8 +3,8 @@
   Post,
   UseGuards,
   BadRequestException,
+  Req,
 } from '@nestjs/common';
-import { Request, Response } from 'express';
 import { UploadService } from './upload.service';
 import { JwtAuthGuard } from '../../common/guards/jwt.guard';
 import { CurrentUser } from '../../common/decorators/user.decorator';
@@ -17,13 +17,12 @@ export class UploadController {
   @Post('presign')
   async getPresignedUrl(
     @CurrentUser() user: any,
-    @Request() req: Request,
-    @Res() res: Response,
+    @Req() req: any,
   ) {
     try {
-      const body = req.body as { fileName?: string; contentType?: string };
+      const body = req.body || {};
       const result = await this.service.getPresignedPutUrl(body.fileName || '', body.contentType || '');
-      return res.json(result);
+      return result;
     } catch (error: any) {
       console.error('Presigned URL error:', error);
       throw new BadRequestException(error.message);
@@ -33,12 +32,11 @@ export class UploadController {
   @Post('file')
   async uploadFile(
     @CurrentUser() user: any,
-    @Request() req: Request,
-    @Res() res: Response,
+    @Req() req: any,
   ) {
     const contentType = req.headers['content-type'] as string;
     if (!contentType || !contentType.includes('multipart/form-data')) {
-      return res.status(400).json({ error: 'Expected multipart/form-data' });
+      throw new BadRequestException('Expected multipart/form-data');
     }
 
     const chunks: Buffer[] = [];
@@ -49,7 +47,7 @@ export class UploadController {
       try {
         const boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^\s;]+))/);
         if (!boundaryMatch) {
-          return res.status(400).json({ error: 'No boundary found in content-type' });
+          throw new BadRequestException('No boundary found in content-type');
         }
         const boundary = boundaryMatch[1] || boundaryMatch[2];
         const boundaryBuffer = Buffer.from(`--${boundary}`, 'utf-8');
@@ -92,7 +90,7 @@ export class UploadController {
         }
 
         if (!fileBuffer) {
-          return res.status(400).json({ error: 'No file found in multipart body' });
+          throw new BadRequestException('No file found in multipart body');
         }
 
         const result = await this.service.uploadFileToStorage({
@@ -106,18 +104,18 @@ export class UploadController {
           filename: filename || 'upload',
           path: '',
           stream: null as any,
-        } as Express.Multer.File);
+        } as any);
 
-        return res.status(200).json(result);
+        return result;
       } catch (error: any) {
         console.error('Upload error:', error.message, error.stack);
-        return res.status(400).json({ error: error.message || 'Upload failed' });
+        throw new BadRequestException(error.message || 'Upload failed');
       }
     });
 
     req.on('error', (err) => {
       console.error('Request stream error:', err);
-      return res.status(400).json({ error: 'Request reading failed' });
+      throw new BadRequestException('Request reading failed');
     });
   }
 }

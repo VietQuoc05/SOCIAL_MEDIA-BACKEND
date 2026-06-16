@@ -57,7 +57,10 @@ export class CommentsService {
       relations: ['author', 'reactions', 'reactions.user'],
     });
 
-    this.gateway.emitNewComment(commentWithAuthor);
+    this.gateway.emitNewComment({
+      ...commentWithAuthor,
+      postId: postId,
+    });
 
     return saved;
   }

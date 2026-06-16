@@ -13,10 +13,16 @@ async function bootstrap() {
 
   app.enableCors({
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-      if (!origin || allowedOrigins.includes(origin) || origin.startsWith('capacitor://') || origin.startsWith('file://') || origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+      if (allowedOrigins.includes(origin) || origin.startsWith('capacitor://') || origin.startsWith('file://')) {
+        callback(null, true);
+      } else if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
         callback(null, true);
       } else {
-        callback(new Error('Not allowed by CORS'));
+        callback(new Error('Not allowed by CORS: ' + origin));
       }
     },
     credentials: true,
@@ -55,12 +61,12 @@ async function bootstrap() {
     },
   });
 
-  await app.listen(port);
+  const host = process.env.HOST || '0.0.0.0';
+  await app.listen(port, host);
 
-  const displayHost = process.env.CORS_ORIGIN?.split(',')[0]?.replace(/^https?:\/\//, '') || 'localhost';
-  console.log(`Server running on: http://${displayHost}:${port}`);
-  console.log(`Swagger: http://${displayHost}:${port}/api`);
-  console.log(`Health: http://${displayHost}:${port}/health`);
+  console.log(`Server running on: http://${host}:${port}`);
+  console.log(`Swagger: http://${host}:${port}/api`);
+  console.log(`Health: http://${host}:${port}/health`);
 }
 
 bootstrap();

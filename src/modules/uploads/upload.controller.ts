@@ -1,11 +1,4 @@
-﻿import {
-  Controller,
-  Post,
-  UseGuards,
-  UseInterceptors,
-  UploadedFile,
-  BadRequestException,
-} from '@nestjs/common';
+﻿import { Controller, Post, UseGuards, UseInterceptors, UploadedFile, BadRequestException, Req } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UploadService } from './upload.service';
 import { JwtAuthGuard } from '../../common/guards/jwt.guard';
@@ -17,9 +10,10 @@ export class UploadController {
   constructor(private readonly service: UploadService) {}
 
   @Post('presign')
-  async getPresignedUrl(@CurrentUser() user: any, @Body() body: { fileName: string; contentType: string }) {
+  async getPresignedUrl(@CurrentUser() user: any, @Req() req: any) {
     try {
-      const result = await this.service.getPresignedPutUrl(body.fileName, body.contentType);
+      const body = req.body || {};
+      const result = await this.service.getPresignedPutUrl(body.fileName || '', body.contentType || '');
       return result;
     } catch (error: any) {
       throw new BadRequestException(error.message);

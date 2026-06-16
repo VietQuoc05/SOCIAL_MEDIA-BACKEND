@@ -9,14 +9,13 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const port = parseInt(process.env.PORT || '3000', 10);
 
-  const allowedOrigins = process.env.CORS_ORIGIN?.split(',').map(o => o.trim()) || [];
-
   app.enableCors({
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
       if (!origin) {
         callback(null, true);
         return;
       }
+      const allowedOrigins = process.env.CORS_ORIGIN?.split(',').map(o => o.trim()) || [];
       if (allowedOrigins.includes(origin) || origin.startsWith('capacitor://') || origin.startsWith('file://')) {
         callback(null, true);
       } else if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
@@ -36,12 +35,27 @@ async function bootstrap() {
     }),
   );
 
-  app.use(
-    '/uploads',
-    express.static(join(__dirname, '..', 'uploads')),
-  );
+  app.use('/uploads', express.static(join(__dirname, '..', 'uploads')));
 
   const expressApp = app.getHttpAdapter().getInstance() as import('express').Express;
+
+  expressApp.use((req: any, res, next) => {
+    if (req.is('multipart/form-data')) {
+      const chunks: Buffer[] = [];
+      req.on('data', (chunk: Buffer) => chunks.push(chunk));
+      req.on('end', () => {
+        req.buffer = Buffer.concat(chunks);
+        next();
+      });
+      req.on('error', (err: Error) => {
+        console.error('Raw body middleware error:', err);
+        res.status(400).json({ error: 'Request reading failed' });
+      });
+    } else {
+      next();
+    }
+  });
+
   expressApp.get('/health', (_req: import('express').Request, res: import('express').Response) => {
     res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
   });
@@ -66,7 +80,7 @@ async function bootstrap() {
 
   console.log(`Server running on: http://${host}:${port}`);
   console.log(`Swagger: http://${host}:${port}/api`);
-  console.log(`Health: http://${host}:${port}/health`);
+  console.log(`Health check: http://${host}:${port}/health`);
 }
 
 bootstrap();

@@ -22,10 +22,8 @@ export class UploadController {
   ) {
     try {
       const result = await this.service.getPresignedPutUrl(body.fileName, body.contentType);
-      console.log('Presigned URL result:', result);
       return result;
     } catch (error: any) {
-      console.error('Presigned URL error:', error.message, error.stack);
       return { error: error.message };
     }
   }
@@ -40,16 +38,14 @@ export class UploadController {
       return { error: 'Expected multipart/form-data' };
     }
 
-    const body = req.body;
-    const buffer = (req as any).buffer;
-
-    if (!buffer || buffer.length === 0) {
+    const body = (req as any).buffer;
+    if (!body || body.length === 0) {
       return { error: 'No file data received' };
     }
 
     try {
-      const contentType = req.headers['content-type'] || '';
-      const boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^\s;]+))/);
+      const contentTypeHeader = req.headers['content-type'] || '';
+      const boundaryMatch = contentTypeHeader.match(/boundary=(?:"([^"]+)"|([^\s;]+))/);
       if (!boundaryMatch) {
         return { error: 'No boundary found in content-type' };
       }
@@ -62,14 +58,22 @@ export class UploadController {
       let mimetype: string | undefined;
 
       let start = 0;
-      for (let i = 0; i < buffer.length; i++) {
-        if (buffer.slice(i, i + boundaryBuffer.length).equals(boundaryBuffer)) {
+      for (let i = 0; i < body.length; i++) {
+        if (body.slice(i, i + boundaryBuffer.length).equals(boundaryBuffer)) {
           if (i > start) {
-            const part = buffer.slice(start, i);
+            const part = body.slice(start, i);
+            
             const headerEnd = part.indexOf(Buffer.from('\r\n\r\n', 'utf-8'));
             if (headerEnd !== -1) {
               const headerSection = part.slice(0, headerEnd).toString('utf-8');
-              const bodySection = part.slice(headerEnd + 4);
+              let bodySection = part.slice(headerEnd + 4);
+
+              while (bodySection.length > 0 && bodySection[bodySection.length - 1] === 0x0A && bodySection[bodySection.length - 2] === 0x0D) {
+                bodySection = bodySection.slice(0, -2);
+              }
+              if (bodySection.length > 0 && bodySection[bodySection.length - 1] === 0x0A) {
+                bodySection = bodySection.slice(0, -1);
+              }
 
               const filenameMatch = headerSection.match(/filename="([^"]*)"/);
               const contentTypeMatch = headerSection.match(/Content-Type:\s*([^\r\n]+)/);

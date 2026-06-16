@@ -11,6 +11,7 @@ import { Repository, In } from 'typeorm';
 import { Post } from '../../database/entities/post.entity';
 import { Follow } from '../../database/entities/follow.entity';
 import { Reaction } from '../../database/entities/reaction.entity';
+import { EventsGateway } from '../../events/events.gateway';
 
 @Injectable()
 export class PostsService {
@@ -23,6 +24,8 @@ export class PostsService {
 
     @InjectRepository(Reaction)
     private reactionRepo: Repository<Reaction>,
+
+    private gateway: EventsGateway,
   ) {}
 
   // ============================
@@ -47,7 +50,16 @@ export class PostsService {
       images: dto.images || [],
     });
 
-    return this.repo.save(post);
+    const saved = await this.repo.save(post);
+
+    const postWithAuthor = await this.repo.findOne({
+      where: { id: saved.id },
+      relations: ['author'],
+    });
+
+    this.gateway.emitPostCreated(postWithAuthor);
+
+    return saved;
   }
 
   // ============================

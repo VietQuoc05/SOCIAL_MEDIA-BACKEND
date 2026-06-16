@@ -3,25 +3,23 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { Comment } from '../../database/entities/comment.entity';
 import { Post } from '../../database/entities/post.entity';
-import { Reaction } from '../../database/entities/reaction.entity'; // ✅ ADD
+import { Reaction } from '../../database/entities/reaction.entity';
 
 import { CommentsService } from './comments.service';
 import { CommentsController } from './comments.controller';
 
-import { EventsGateway } from '../../events/events.gateway'; // ✅ ADD
+import { EventsModule } from '../../events/events.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([
       Comment,
       Post,
-      Reaction, // ✅ QUAN TRỌNG
+      Reaction,
     ]),
+    EventsModule,
   ],
-  providers: [
-    CommentsService,
-    EventsGateway, // ✅ QUAN TRỌNG
-  ],
+  providers: [CommentsService],
   controllers: [CommentsController],
   exports: [CommentsService],
 })

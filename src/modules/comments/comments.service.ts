@@ -52,7 +52,12 @@ export class CommentsService {
 
     const saved = await this.repo.save(comment);
 
-    this.gateway.emitNewComment(saved);
+    const commentWithAuthor = await this.repo.findOne({
+      where: { id: saved.id },
+      relations: ['author', 'reactions', 'reactions.user'],
+    });
+
+    this.gateway.emitNewComment(commentWithAuthor);
 
     return saved;
   }

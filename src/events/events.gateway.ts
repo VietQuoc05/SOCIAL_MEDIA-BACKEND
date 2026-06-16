@@ -26,12 +26,14 @@ export class EventsGateway
     console.log('❌ Client disconnected:', client.id);
   }
 
-  // ✅ COMMENT EVENT
+  emitPostCreated(data: any) {
+    this.server.emit('post_created', data);
+  }
+
   emitNewComment(data: any) {
     this.server.emit('new_comment', data);
   }
 
-  // ✅ REACTION EVENT
   emitReactionUpdate(data: any) {
     this.server.emit('reaction_update', data);
   }

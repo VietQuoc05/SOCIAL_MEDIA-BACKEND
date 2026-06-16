@@ -8,8 +8,8 @@ import { Reaction } from '../../database/entities/reaction.entity';
 import { PostsService } from './posts.service';
 import { PostsController } from './posts.controller';
 
-// ✅ ADD
 import { UploadModule } from '../uploads/upload.module';
+import { EventsModule } from '../../events/events.module';
 
 @Module({
   imports: [
@@ -18,7 +18,8 @@ import { UploadModule } from '../uploads/upload.module';
       Follow,
       Reaction,
     ]),
-    UploadModule, // ✅ QUAN TRỌNG: dùng UploadService
+    UploadModule,
+    EventsModule,
   ],
   providers: [PostsService],
   controllers: [PostsController],

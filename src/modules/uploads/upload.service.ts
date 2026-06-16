@@ -25,7 +25,7 @@ export class UploadService {
       'image/bmp': '.bmp',
       'image/tiff': '.tiff',
     };
-    return map[mimetype] || '';
+    return map[mimetype] || '.bin';
   }
 
   private sanitizeFileName(name: string | undefined): string {
@@ -62,6 +62,7 @@ export class UploadService {
         headers: {
           'Authorization': `Bearer ${supabaseKey}`,
           'Content-Type': file.mimetype,
+          'x-upsert': 'true',
         },
         body: new Uint8Array(file.buffer),
       }

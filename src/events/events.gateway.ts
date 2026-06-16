@@ -30,6 +30,10 @@ export class EventsGateway
     this.server.emit('post_created', data);
   }
 
+  emitPostDeleted(postId: string) {
+    this.server.emit('post_deleted', { postId });
+  }
+
   emitNewComment(data: any) {
     this.server.emit('new_comment', data);
   }

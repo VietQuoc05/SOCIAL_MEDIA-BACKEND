@@ -139,6 +139,8 @@ export class PostsService {
 
     await this.repo.delete(postId);
 
+    this.gateway.emitPostDeleted(postId);
+
     return { message: 'Post deleted' };
   }
 

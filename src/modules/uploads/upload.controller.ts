@@ -4,6 +4,7 @@
   Body,
   UseGuards,
   Req,
+  BadRequestException,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { UploadService } from './upload.service';
@@ -24,7 +25,7 @@ export class UploadController {
       const result = await this.service.getPresignedPutUrl(body.fileName, body.contentType);
       return result;
     } catch (error: any) {
-      return { error: error.message };
+      throw new BadRequestException(error.message);
     }
   }
 
@@ -35,23 +36,22 @@ export class UploadController {
   ) {
     const contentType = req.headers['content-type'] as string;
     if (!contentType || !contentType.includes('multipart/form-data')) {
-      return { error: 'Expected multipart/form-data' };
+      throw new BadRequestException('Expected multipart/form-data');
     }
 
     const body = (req as any).buffer;
     if (!body || body.length === 0) {
-      return { error: 'No file data received' };
+      throw new BadRequestException('No file data received');
     }
 
     try {
       const contentTypeHeader = req.headers['content-type'] || '';
       const boundaryMatch = contentTypeHeader.match(/boundary=(?:"([^"]+)"|([^\s;]+))/);
       if (!boundaryMatch) {
-        return { error: 'No boundary found in content-type' };
+        throw new BadRequestException('No boundary found in content-type');
       }
       const boundary = boundaryMatch[1] || boundaryMatch[2];
       const boundaryBuffer = Buffer.from(`--${boundary}`, 'utf-8');
-      const boundaryEndBuffer = Buffer.from(`--${boundary}--`, 'utf-8');
 
       let fileBuffer: Buffer | null = null;
       let filename: string | undefined;
@@ -62,7 +62,6 @@ export class UploadController {
         if (body.slice(i, i + boundaryBuffer.length).equals(boundaryBuffer)) {
           if (i > start) {
             const part = body.slice(start, i);
-            
             const headerEnd = part.indexOf(Buffer.from('\r\n\r\n', 'utf-8'));
             if (headerEnd !== -1) {
               const headerSection = part.slice(0, headerEnd).toString('utf-8');
@@ -90,7 +89,7 @@ export class UploadController {
       }
 
       if (!fileBuffer) {
-        return { error: 'No file found in multipart body' };
+        throw new BadRequestException('No file found in multipart body');
       }
 
       const result = await this.service.uploadFileToStorage({
@@ -108,8 +107,8 @@ export class UploadController {
 
       return result;
     } catch (error: any) {
-      console.error('Upload error:', error.message, error.stack);
-      return { error: error.message };
+      if (error instanceof BadRequestException) throw error;
+      throw new BadRequestException(error.message || 'Upload failed');
     }
   }
 }

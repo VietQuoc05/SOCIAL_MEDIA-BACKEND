@@ -48,9 +48,15 @@ export class ReactionsService {
         2,
       );
 
+      // ✅ Đếm reactions thực tế sau khi unlike
+      const totalReactions = await this.repo.count({
+        where: { post: { id: postId } },
+      });
+
       this.gateway.emitReactionUpdate({
         postId,
         action: 'removed',
+        totalReactions,
       });
 
       return {
@@ -72,9 +78,15 @@ export class ReactionsService {
       2,
     );
 
+    // ✅ Đếm reactions thực tế sau khi like
+    const totalReactions = await this.repo.count({
+      where: { post: { id: postId } },
+    });
+
     this.gateway.emitReactionUpdate({
       postId,
       action: 'created',
+      totalReactions,
     });
 
     return {
@@ -107,9 +119,15 @@ export class ReactionsService {
         2,
       );
 
+      // ✅ Đếm reactions thực tế sau khi unlike
+      const totalReactions = await this.repo.count({
+        where: { comment: { id: commentId } },
+      });
+
       this.gateway.emitReactionUpdate({
         commentId,
         action: 'removed',
+        totalReactions,
       });
 
       return {
@@ -131,9 +149,15 @@ export class ReactionsService {
       2,
     );
 
+    // ✅ Đếm reactions thực tế sau khi like
+    const totalReactions = await this.repo.count({
+      where: { comment: { id: commentId } },
+    });
+
     this.gateway.emitReactionUpdate({
       commentId,
       action: 'created',
+      totalReactions,
     });
 
     return {

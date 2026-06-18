@@ -9,6 +9,7 @@ import { PostsModule } from './modules/posts/posts.module';
 import { CommentsModule } from './modules/comments/comments.module';
 import { ReactionsModule } from './modules/reactions/reactions.module';
 import { UploadModule } from './modules/uploads/upload.module';
+import { ChatModule } from './modules/chat/chat.module';
 
 // ✅ IMPORT EVENTS MODULE
 import { EventsModule } from './events/events.module';
@@ -39,6 +40,7 @@ import { EventsModule } from './events/events.module';
     CommentsModule,
     ReactionsModule,
     UploadModule,
+    ChatModule,
 
     EventsModule, // ✅ thêm vào đây
   ],

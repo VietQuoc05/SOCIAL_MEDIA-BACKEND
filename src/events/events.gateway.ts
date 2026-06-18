@@ -41,4 +41,16 @@ export class EventsGateway
   emitReactionUpdate(data: any) {
     this.server.emit('reaction_update', data);
   }
+
+  // ============================
+  // ✅ CHAT
+  // ============================
+  emitNewMessage(data: any) {
+    // Emit to both participants
+    this.server.emit('new_message', data);
+  }
+
+  emitConversationCreated(data: any) {
+    this.server.emit('conversation_created', data);
+  }
 }

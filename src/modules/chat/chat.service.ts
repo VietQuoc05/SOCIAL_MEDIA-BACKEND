@@ -10,6 +10,7 @@ import { Repository, LessThan } from 'typeorm';
 import { Conversation } from '../../database/entities/conversation.entity';
 import { Message } from '../../database/entities/message.entity';
 import { Follow } from '../../database/entities/follow.entity';
+import { EventsGateway } from '../../events/events.gateway';
 
 @Injectable()
 export class ChatService {
@@ -20,6 +21,7 @@ export class ChatService {
     private messageRepo: Repository<Message>,
     @InjectRepository(Follow)
     private followRepo: Repository<Follow>,
+    private eventsGateway: EventsGateway,
   ) {}
 
   // ============================
@@ -65,6 +67,11 @@ export class ChatService {
         where: { id: conversation.id },
         relations: ['user1', 'user2'],
       })!;
+
+      // ✅ REAL-TIME: notify about new conversation
+      if (conversation) {
+        this.eventsGateway.emitConversationCreated(conversation);
+      }
     }
 
     return conversation;
@@ -175,10 +182,17 @@ export class ChatService {
       lastSenderId: userId,
     });
 
-    // Return full message with sender
-    return this.messageRepo.findOne({
+    // Get full message with sender
+    const savedMessage = await this.messageRepo.findOne({
       where: { id: saved.id },
       relations: ['sender'],
     });
+
+    // ✅ REAL-TIME: emit new message via WebSocket
+    if (savedMessage) {
+      this.eventsGateway.emitNewMessage(savedMessage);
+    }
+
+    return savedMessage;
   }
 }

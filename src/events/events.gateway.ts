@@ -1,6 +1,7 @@
 import {
   WebSocketGateway,
   WebSocketServer,
+  SubscribeMessage,
   OnGatewayConnection,
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
@@ -52,5 +53,19 @@ export class EventsGateway
 
   emitConversationCreated(data: any) {
     this.server.emit('conversation_created', data);
+  }
+
+  // ============================
+  // ✅ TYPING
+  // ============================
+  @SubscribeMessage('typing')
+  handleTyping(client: Socket, data: { conversationId: string; userId: string; displayName: string }) {
+    // Broadcast typing event to everyone except the sender
+    client.broadcast.emit('typing', data);
+  }
+
+  @SubscribeMessage('stop_typing')
+  handleStopTyping(client: Socket, data: { conversationId: string }) {
+    client.broadcast.emit('stop_typing', data);
   }
 }

@@ -70,4 +70,13 @@ export class ChatController {
       dto.image,
     );
   }
+
+  @ApiOperation({ summary: 'Mark messages as read in a conversation' })
+  @Post('read/:conversationId')
+  markAsRead(
+    @Param('conversationId') conversationId: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.service.markAsRead(conversationId, user.id);
+  }
 }

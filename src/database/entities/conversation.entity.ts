@@ -55,6 +55,15 @@ export class Conversation {
   lastSenderId: string;
 
   // ============================
+  // ✅ READ TRACKING
+  // ============================
+  @Column({ nullable: true })
+  user1LastReadAt: Date;
+
+  @Column({ nullable: true })
+  user2LastReadAt: Date;
+
+  // ============================
   // ✅ TIME
   // ============================
   @CreateDateColumn()

@@ -8,6 +8,10 @@ import {
 
 import { Server, Socket } from 'socket.io';
 
+interface AuthenticatedSocket extends Socket {
+  userId?: string;
+}
+
 @WebSocketGateway({
   cors: {
     origin: '*',
@@ -19,11 +23,11 @@ export class EventsGateway
   @WebSocketServer()
   server: Server;
 
-  handleConnection(client: Socket) {
+  handleConnection(client: AuthenticatedSocket) {
     console.log('✅ Client connected:', client.id);
   }
 
-  handleDisconnect(client: Socket) {
+  handleDisconnect(client: AuthenticatedSocket) {
     console.log('❌ Client disconnected:', client.id);
   }
 
@@ -53,6 +57,14 @@ export class EventsGateway
 
   emitConversationCreated(data: any) {
     this.server.emit('conversation_created', data);
+  }
+
+  emitConversationUpdated(data: any) {
+    this.server.emit('conversation_updated', data);
+  }
+
+  emitMessagesRead(data: { conversationId: string; userId: string; readAt: string }) {
+    this.server.emit('messages_read', data);
   }
 
   // ============================

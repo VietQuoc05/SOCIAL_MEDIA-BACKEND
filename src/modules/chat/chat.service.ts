@@ -5,7 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan } from 'typeorm';
+import { Repository, LessThan, MoreThan } from 'typeorm';
 
 import { Conversation } from '../../database/entities/conversation.entity';
 import { Message } from '../../database/entities/message.entity';
@@ -90,9 +90,40 @@ export class ChatService {
       order: { lastMessageAt: 'DESC', createdAt: 'DESC' },
     });
 
-    return conversations.map(conv => {
+    const result = [];
+    for (const conv of conversations) {
       const otherUser = conv.user1Id === userId ? conv.user2 : conv.user1;
-      return {
+
+      // Determine the user's last read timestamp
+      const userLastReadAt = conv.user1Id === userId
+        ? conv.user1LastReadAt
+        : conv.user2LastReadAt;
+
+      // Count unread messages: messages from the other user sent after the user's last read
+      let unreadCount = 0;
+      if (conv.lastMessageAt) {
+        if (userLastReadAt) {
+          const count = await this.messageRepo.count({
+            where: {
+              conversationId: conv.id,
+              senderId: otherUser.id,
+              createdAt: MoreThan(userLastReadAt),
+            },
+          });
+          unreadCount = count;
+        } else {
+          // Never read - count all messages from the other user
+          const count = await this.messageRepo.count({
+            where: {
+              conversationId: conv.id,
+              senderId: otherUser.id,
+            },
+          });
+          unreadCount = count;
+        }
+      }
+
+      result.push({
         id: conv.id,
         otherUser,
         lastMessage: conv.lastMessage,
@@ -100,8 +131,11 @@ export class ChatService {
         lastMessageAt: conv.lastMessageAt,
         lastSenderId: conv.lastSenderId,
         createdAt: conv.createdAt,
-      };
-    });
+        unreadCount,
+      });
+    }
+
+    return result;
   }
 
   // ============================
@@ -193,6 +227,71 @@ export class ChatService {
       this.eventsGateway.emitNewMessage(savedMessage);
     }
 
+    // ✅ REAL-TIME: emit conversation updated for the other user to know about unread
+    const updatedConv = await this.conversationRepo.findOne({
+      where: { id: conversationId },
+      relations: ['user1', 'user2'],
+    });
+    if (updatedConv) {
+      this.eventsGateway.emitConversationUpdated(updatedConv);
+    }
+
     return savedMessage;
+  }
+
+  // ============================
+  // ✅ MARK MESSAGES AS READ
+  // ============================
+  async markAsRead(conversationId: string, userId: string) {
+    const conversation = await this.conversationRepo.findOne({
+      where: { id: conversationId },
+    });
+
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found');
+    }
+
+    // Verify user is part of this conversation
+    if (conversation.user1Id !== userId && conversation.user2Id !== userId) {
+      throw new ForbiddenException('Not a participant of this conversation');
+    }
+
+    const now = new Date();
+
+    // Update the user's last read timestamp on the conversation
+    if (conversation.user1Id === userId) {
+      await this.conversationRepo.update(conversationId, { user1LastReadAt: now });
+    } else {
+      await this.conversationRepo.update(conversationId, { user2LastReadAt: now });
+    }
+
+    // Mark all unread messages from the other user as read
+    const otherUserId = conversation.user1Id === userId ? conversation.user2Id : conversation.user1Id;
+    await this.messageRepo.update(
+      {
+        conversationId,
+        senderId: otherUserId,
+        readAt: null,
+      },
+      { readAt: now },
+    );
+
+    // ✅ REAL-TIME: notify the other user that messages were read
+    this.eventsGateway.emitMessagesRead({
+      conversationId,
+      userId,
+      readAt: now.toISOString(),
+    });
+
+    // ✅ REAL-TIME: emit conversation updated so the sender's unread count refreshes
+    const updatedConv = await this.conversationRepo.findOne({
+      where: { id: conversationId },
+      relations: ['user1', 'user2'],
+    });
+    if (updatedConv) {
+      this.eventsGateway.emitConversationUpdated(updatedConv);
+    }
+
+    return { success: true, readAt: now.toISOString() };
   }
 }

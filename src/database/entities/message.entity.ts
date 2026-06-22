@@ -49,6 +49,12 @@ export class Message {
   image: string;
 
   // ============================
+  // ✅ READ STATUS
+  // ============================
+  @Column({ nullable: true })
+  readAt: Date;
+
+  // ============================
   // ✅ TIME
   // ============================
   @CreateDateColumn()

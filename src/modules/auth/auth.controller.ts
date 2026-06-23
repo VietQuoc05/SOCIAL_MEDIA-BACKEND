@@ -4,6 +4,7 @@ import { AuthService } from './auth.service';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { RefreshDto } from './dto/refresh.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -23,9 +24,20 @@ export class AuthController {
   @ApiOperation({ summary: 'User login' })
   @ApiResponse({
     status: 200,
-    description: 'Login successful, return JWT token',
+    description: 'Login successful, return access + refresh tokens',
   })
   login(@Body() dto: LoginDto) {
     return this.service.login(dto);
+  }
+
+  // ✅ REFRESH
+  @Post('refresh')
+  @ApiOperation({ summary: 'Refresh access token' })
+  @ApiResponse({
+    status: 200,
+    description: 'New access + refresh tokens returned',
+  })
+  refresh(@Body() dto: RefreshDto) {
+    return this.service.refresh(dto);
   }
 }

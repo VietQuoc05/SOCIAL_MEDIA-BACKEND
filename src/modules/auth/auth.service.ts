@@ -3,6 +3,9 @@ import {
   UnauthorizedException,
   BadRequestException,
 } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import * as crypto from 'crypto';
 
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
@@ -10,6 +13,8 @@ import * as bcrypt from 'bcrypt';
 
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { RefreshDto } from './dto/refresh.dto';
+import { RefreshToken } from '../../database/entities/refresh-token.entity';
 
 // ✅ util normalize
 function normalizeDisplayName(input: string) {
@@ -36,6 +41,8 @@ export class AuthService {
   constructor(
     private usersService: UsersService,
     private jwt: JwtService,
+    @InjectRepository(RefreshToken)
+    private refreshTokenRepo: Repository<RefreshToken>,
   ) {}
 
   // ============================
@@ -73,6 +80,35 @@ export class AuthService {
   }
 
   // ============================
+  // ✅ GENERATE TOKENS
+  // ============================
+  private async generateTokens(user: { id: string; email: string }) {
+    const payload = { sub: user.id, email: user.email };
+
+    const access_token = this.jwt.sign(payload, {
+      expiresIn: process.env.JWT_EXPIRES_IN || '15m',
+    });
+
+    const rawToken = crypto.randomBytes(40).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setDate(
+      expiresAt.getDate() +
+        parseInt(process.env.JWT_REFRESH_EXPIRES_IN_DAYS || '7', 10),
+    );
+
+    await this.refreshTokenRepo.save({
+      token: rawToken,
+      userId: user.id,
+      expiresAt,
+    });
+
+    return {
+      access_token,
+      refresh_token: rawToken,
+    };
+  }
+
+  // ============================
   // ✅ LOGIN
   // ============================
   async login(dto: LoginDto) {
@@ -93,13 +129,32 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const payload = {
-      sub: user.id,
-      email: user.email,
-    };
+    return this.generateTokens(user);
+  }
 
-    return {
-      access_token: this.jwt.sign(payload),
-    };
+  // ============================
+  // ✅ REFRESH
+  // ============================
+  async refresh(dto: RefreshDto) {
+    const { refresh_token } = dto;
+
+    const existing = await this.refreshTokenRepo.findOne({
+      where: { token: refresh_token },
+      relations: ['user'],
+    });
+
+    if (!existing) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    if (new Date() > existing.expiresAt) {
+      await this.refreshTokenRepo.remove(existing);
+      throw new UnauthorizedException('Refresh token expired');
+    }
+
+    // Xoá refresh token cũ (rotation)
+    await this.refreshTokenRepo.remove(existing);
+
+    return this.generateTokens(existing.user);
   }
 }

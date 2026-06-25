@@ -1,11 +1,34 @@
 import { Injectable } from '@nestjs/common';
-import * as sgMail from '@sendgrid/mail';
+import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class MailService {
+  private transporter: nodemailer.Transporter;
+
   constructor() {
+    // SendGrid SMTP (ưu tiên) hoặc Gmail SMTP (fallback)
     if (process.env.SENDGRID_API_KEY) {
-      sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+      // Dùng SendGrid qua SMTP
+      this.transporter = nodemailer.createTransport({
+        host: 'smtp.sendgrid.net',
+        port: 587,
+        secure: false,
+        auth: {
+          user: 'apikey',
+          pass: process.env.SENDGRID_API_KEY,
+        },
+      });
+    } else if (process.env.MAIL_HOST && process.env.MAIL_USER) {
+      // Fallback: Gmail SMTP
+      this.transporter = nodemailer.createTransport({
+        host: process.env.MAIL_HOST,
+        port: parseInt(process.env.MAIL_PORT || '587', 10),
+        secure: process.env.MAIL_SECURE === 'true',
+        auth: {
+          user: process.env.MAIL_USER,
+          pass: process.env.MAIL_PASSWORD,
+        },
+      });
     }
   }
 
@@ -81,10 +104,10 @@ export class MailService {
   }) {
     const fromEmail = process.env.MAIL_FROM || 'noreply@social-media.com';
 
-    // Nếu chưa config SendGrid, log ra console (dev mode)
-    if (!process.env.SENDGRID_API_KEY) {
+    // Nếu chưa config email, log ra console (dev mode)
+    if (!this.transporter) {
       console.log('==================================');
-      console.log('📧 EMAIL (dev mode - no SendGrid configured)');
+      console.log('📧 EMAIL (dev mode - no SMTP configured)');
       console.log(`To: ${options.to}`);
       console.log(`Subject: ${options.subject}`);
       console.log(`HTML: ${options.html}`);
@@ -92,7 +115,7 @@ export class MailService {
       return;
     }
 
-    await sgMail.send({
+    await this.transporter.sendMail({
       from: fromEmail,
       to: options.to,
       subject: options.subject,

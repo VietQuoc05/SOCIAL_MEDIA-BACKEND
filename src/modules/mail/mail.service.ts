@@ -17,6 +17,9 @@ export class MailService {
           user: 'apikey',
           pass: process.env.SENDGRID_API_KEY,
         },
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 15000,
       });
     } else if (process.env.MAIL_HOST && process.env.MAIL_USER) {
       // Fallback: Gmail SMTP

@@ -52,6 +52,14 @@ export class AuthController {
     return this.service.verifyEmail(token);
   }
 
+  // ✅ RESEND VERIFY EMAIL
+  @Post('resend-verify')
+  @ApiOperation({ summary: 'Resend verification email' })
+  @ApiResponse({ status: 200, description: 'Verification email resent' })
+  resendVerify(@Body() dto: ForgotPasswordDto) {
+    return this.service.resendVerifyEmail(dto);
+  }
+
   // ✅ FORGOT PASSWORD
   @Post('forgot-password')
   @ApiOperation({ summary: 'Request password reset email' })

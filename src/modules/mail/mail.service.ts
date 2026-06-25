@@ -1,22 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import * as nodemailer from 'nodemailer';
+import * as sgMail from '@sendgrid/mail';
 
 @Injectable()
 export class MailService {
-  private transporter: nodemailer.Transporter;
-
   constructor() {
-    // Kiểm tra nếu có config email thì mới khởi tạo transporter
-    if (process.env.MAIL_HOST && process.env.MAIL_USER) {
-      this.transporter = nodemailer.createTransport({
-        host: process.env.MAIL_HOST,
-        port: parseInt(process.env.MAIL_PORT || '587', 10),
-        secure: process.env.MAIL_SECURE === 'true',
-        auth: {
-          user: process.env.MAIL_USER,
-          pass: process.env.MAIL_PASSWORD,
-        },
-      });
+    if (process.env.SENDGRID_API_KEY) {
+      sgMail.setApiKey(process.env.SENDGRID_API_KEY);
     }
   }
 
@@ -90,10 +79,12 @@ export class MailService {
     subject: string;
     html: string;
   }) {
-    // Nếu chưa config email, log ra console (dev mode)
-    if (!this.transporter) {
+    const fromEmail = process.env.MAIL_FROM || 'noreply@social-media.com';
+
+    // Nếu chưa config SendGrid, log ra console (dev mode)
+    if (!process.env.SENDGRID_API_KEY) {
       console.log('==================================');
-      console.log('📧 EMAIL (dev mode - no SMTP configured)');
+      console.log('📧 EMAIL (dev mode - no SendGrid configured)');
       console.log(`To: ${options.to}`);
       console.log(`Subject: ${options.subject}`);
       console.log(`HTML: ${options.html}`);
@@ -101,8 +92,8 @@ export class MailService {
       return;
     }
 
-    await this.transporter.sendMail({
-      from: process.env.MAIL_FROM || process.env.MAIL_USER,
+    await sgMail.send({
+      from: fromEmail,
       to: options.to,
       subject: options.subject,
       html: options.html,

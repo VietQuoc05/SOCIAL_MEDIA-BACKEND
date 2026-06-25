@@ -2,7 +2,6 @@ import {
   Injectable,
   UnauthorizedException,
   BadRequestException,
-  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -104,6 +103,35 @@ export class AuthService {
   }
 
   // ============================
+  // ✅ RESEND VERIFY EMAIL
+  // ============================
+  async resendVerifyEmail(dto: ForgotPasswordDto) {
+    const { email } = dto;
+
+    const user = await this.userRepo.findOne({
+      where: { email, isDeleted: false },
+    });
+
+    if (!user || user.isVerified) {
+      return {
+        message: 'If that email is registered and not verified, a verification link has been sent.',
+      };
+    }
+
+    const verifyToken = uuidv4();
+    user.verifyToken = verifyToken;
+    await this.userRepo.save(user);
+
+    this.mailService.sendVerifyEmail(email, verifyToken).catch((err) => {
+      console.error('Failed to resend verification email:', err);
+    });
+
+    return {
+      message: 'If that email is registered and not verified, a verification link has been sent.',
+    };
+  }
+
+  // ============================
   // ✅ VERIFY EMAIL
   // ============================
   async verifyEmail(token: string) {
@@ -120,7 +148,7 @@ export class AuthService {
     }
 
     user.isVerified = true;
-    user.verifyToken = null; // clear token after use
+    user.verifyToken = null;
     await this.userRepo.save(user);
 
     return { message: 'Email verified successfully. You can now log in.' };
@@ -168,7 +196,6 @@ export class AuthService {
     }
 
     // ✅ CHECK: Email đã verify chưa?
-    // Cần fetch lại user để có isVerified (findByEmail select limited fields)
     const fullUser = await this.userRepo.findOne({
       where: { id: user.id },
     });
@@ -267,7 +294,6 @@ export class AuthService {
     }
 
     if (user.resetTokenExpire && new Date() > user.resetTokenExpire) {
-      // Clear expired token
       user.resetToken = null;
       user.resetTokenExpire = null;
       await this.userRepo.save(user);

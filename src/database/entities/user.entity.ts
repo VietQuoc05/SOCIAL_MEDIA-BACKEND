@@ -91,6 +91,15 @@ export class User {
   @Column({ default: false })
   isVerified: boolean;
 
+  @Column({ nullable: true })
+  verifyToken: string;
+
+  @Column({ nullable: true })
+  resetToken: string;
+
+  @Column({ type: 'timestamp', nullable: true })
+  resetTokenExpire: Date;
+
   @Column({ default: false })
   isDeleted: boolean;
 

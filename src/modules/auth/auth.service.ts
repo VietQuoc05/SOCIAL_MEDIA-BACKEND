@@ -2,10 +2,12 @@ import {
   Injectable,
   UnauthorizedException,
   BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as crypto from 'crypto';
+import { v4 as uuidv4 } from 'uuid';
 
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
@@ -14,7 +16,11 @@ import * as bcrypt from 'bcrypt';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { RefreshDto } from './dto/refresh.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RefreshToken } from '../../database/entities/refresh-token.entity';
+import { User } from '../../database/entities/user.entity';
+import { MailService } from '../mail/mail.service';
 
 // ✅ util normalize
 function normalizeDisplayName(input: string) {
@@ -41,8 +47,13 @@ export class AuthService {
   constructor(
     private usersService: UsersService,
     private jwt: JwtService,
+    private mailService: MailService,
+
     @InjectRepository(RefreshToken)
     private refreshTokenRepo: Repository<RefreshToken>,
+
+    @InjectRepository(User)
+    private userRepo: Repository<User>,
   ) {}
 
   // ============================
@@ -68,15 +79,49 @@ export class AuthService {
 
     const hash = await bcrypt.hash(password, 10);
 
+    const verifyToken = uuidv4();
+
     const user = await this.usersService.create({
       email,
       username,
       displayName: normalizedDisplayName,
       password: hash,
+      isVerified: false,
+      verifyToken,
     });
 
+    // Gửi email verify
+    await this.mailService.sendVerifyEmail(email, verifyToken);
+
     const { password: _, ...result } = user;
-    return result;
+    return {
+      ...result,
+      message:
+        'Account created. Please check your email to verify your account.',
+    };
+  }
+
+  // ============================
+  // ✅ VERIFY EMAIL
+  // ============================
+  async verifyEmail(token: string) {
+    const user = await this.userRepo.findOne({
+      where: { verifyToken: token },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Invalid or expired verification token');
+    }
+
+    if (user.isVerified) {
+      return { message: 'Email already verified. You can log in.' };
+    }
+
+    user.isVerified = true;
+    user.verifyToken = null; // clear token after use
+    await this.userRepo.save(user);
+
+    return { message: 'Email verified successfully. You can now log in.' };
   }
 
   // ============================
@@ -120,6 +165,18 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    // ✅ CHECK: Email đã verify chưa?
+    // Cần fetch lại user để có isVerified (findByEmail select limited fields)
+    const fullUser = await this.userRepo.findOne({
+      where: { id: user.id },
+    });
+
+    if (!fullUser.isVerified) {
+      throw new UnauthorizedException(
+        'Email not verified. Please check your inbox.',
+      );
+    }
+
     const match = await bcrypt.compare(
       password,
       user.password,
@@ -156,5 +213,69 @@ export class AuthService {
     await this.refreshTokenRepo.remove(existing);
 
     return this.generateTokens(existing.user);
+  }
+
+  // ============================
+  // ✅ FORGOT PASSWORD
+  // ============================
+  async forgotPassword(dto: ForgotPasswordDto) {
+    const { email } = dto;
+
+    const user = await this.userRepo.findOne({
+      where: { email, isDeleted: false },
+    });
+
+    // Không tiết lộ user có tồn tại hay không (bảo mật)
+    if (!user) {
+      return {
+        message:
+          'If that email is registered, you will receive a password reset link.',
+      };
+    }
+
+    // Tạo reset token (hết hạn sau 15 phút)
+    const resetToken = uuidv4();
+    user.resetToken = resetToken;
+    user.resetTokenExpire = new Date(Date.now() + 15 * 60 * 1000);
+    await this.userRepo.save(user);
+
+    // Gửi email reset password
+    await this.mailService.sendResetPasswordEmail(email, resetToken);
+
+    return {
+      message:
+        'If that email is registered, you will receive a password reset link.',
+    };
+  }
+
+  // ============================
+  // ✅ RESET PASSWORD
+  // ============================
+  async resetPassword(dto: ResetPasswordDto) {
+    const { token, password } = dto;
+
+    const user = await this.userRepo.findOne({
+      where: { resetToken: token },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Invalid or expired reset token');
+    }
+
+    if (user.resetTokenExpire && new Date() > user.resetTokenExpire) {
+      // Clear expired token
+      user.resetToken = null;
+      user.resetTokenExpire = null;
+      await this.userRepo.save(user);
+      throw new BadRequestException('Reset token has expired');
+    }
+
+    const hash = await bcrypt.hash(password, 10);
+    user.password = hash;
+    user.resetToken = null;
+    user.resetTokenExpire = null;
+    await this.userRepo.save(user);
+
+    return { message: 'Password has been reset successfully.' };
   }
 }

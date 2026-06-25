@@ -90,8 +90,10 @@ export class AuthService {
       verifyToken,
     });
 
-    // Gửi email verify
-    await this.mailService.sendVerifyEmail(email, verifyToken);
+    // Gửi email verify (fire & forget - không block response)
+    this.mailService.sendVerifyEmail(email, verifyToken).catch((err) => {
+      console.error('Failed to send verification email:', err);
+    });
 
     const { password: _, ...result } = user;
     return {
@@ -239,8 +241,10 @@ export class AuthService {
     user.resetTokenExpire = new Date(Date.now() + 15 * 60 * 1000);
     await this.userRepo.save(user);
 
-    // Gửi email reset password
-    await this.mailService.sendResetPasswordEmail(email, resetToken);
+    // Gửi email reset password (fire & forget)
+    this.mailService.sendResetPasswordEmail(email, resetToken).catch((err) => {
+      console.error('Failed to send reset password email:', err);
+    });
 
     return {
       message:

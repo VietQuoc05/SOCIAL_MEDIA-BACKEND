@@ -115,11 +115,24 @@ export class MailService {
       return;
     }
 
-    await this.transporter.sendMail({
-      from: fromEmail,
-      to: options.to,
-      subject: options.subject,
-      html: options.html,
-    });
+    console.log(`📧 Sending email to ${options.to} via SendGrid...`);
+    console.log(`   From: ${fromEmail}`);
+    console.log(`   Subject: ${options.subject}`);
+
+    try {
+      const info = await this.transporter.sendMail({
+        from: fromEmail,
+        to: options.to,
+        subject: options.subject,
+        html: options.html,
+      });
+      console.log(`✅ Email sent successfully to ${options.to}: ${info.messageId}`);
+    } catch (error) {
+      console.error(`❌ Failed to send email to ${options.to}:`, error.message);
+      if (error.response) {
+        console.error(`   SendGrid response: ${error.response}`);
+      }
+      throw error;
+    }
   }
 }

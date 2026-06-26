@@ -44,7 +44,7 @@ export class MailService {
   // ============================
   async sendResetPasswordEmail(to: string, token: string) {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
-    const link = `${frontendUrl}/auth/reset-password?token=${token}`;
+    const link = `${frontendUrl}/reset-password?token=${token}`;
 
     await this.sendMailViaApi({
       to,

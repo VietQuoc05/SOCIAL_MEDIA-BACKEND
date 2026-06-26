@@ -163,39 +163,56 @@ export class AuthService {
   }
 
   // ============================
-  // ✅ VERIFY EMAIL (tạo User thật từ PendingUser)
+  // ✅ VERIFY EMAIL (tìm trong PendingUser hoặc User cũ)
   // ============================
   async verifyEmail(token: string) {
+    // TH1: Kiểm tra PendingUser (register flow mới)
     const pending = await this.pendingUserRepo.findOne({
       where: { verifyToken: token },
     });
 
-    if (!pending) {
-      throw new BadRequestException('Invalid or expired verification token');
-    }
+    if (pending) {
+      // Kiểm tra email đã tồn tại trong User chưa (tránh race condition)
+      const existingUser = await this.usersService.findByEmail(pending.email);
+      if (existingUser) {
+        // Nếu user đã tồn tại, xoá pending và verify user đó
+        existingUser.isVerified = true;
+        existingUser.verifyToken = null;
+        await this.userRepo.save(existingUser);
+        await this.pendingUserRepo.remove(pending);
+        return { message: 'Email verified successfully. You can now log in.' };
+      }
 
-    // Kiểm tra lại lần nữa xem email đã tồn tại trong User chưa (tránh race condition)
-    const existingUser = await this.usersService.findByEmail(pending.email);
-    if (existingUser) {
-      // Nếu user đã tồn tại, xoá pending và báo thành công
+      // Tạo User thật từ PendingUser
+      await this.usersService.create({
+        email: pending.email,
+        password: pending.password,
+        username: pending.username,
+        displayName: pending.displayName,
+        isVerified: true,
+        verifyToken: null,
+      });
+
+      // Xoá PendingUser
       await this.pendingUserRepo.remove(pending);
-      return { message: 'Email already verified. You can log in.' };
+
+      return { message: 'Email verified successfully. You can now log in.' };
     }
 
-    // Tạo User thật
-    const user = await this.usersService.create({
-      email: pending.email,
-      password: pending.password,
-      username: pending.username,
-      displayName: pending.displayName,
-      isVerified: true,
-      verifyToken: null,
+    // TH2: Kiểm tra User cũ (tạo trước khi có pending flow, isVerified=false)
+    const user = await this.userRepo.findOne({
+      where: { verifyToken: token, isDeleted: false },
     });
 
-    // Xoá PendingUser
-    await this.pendingUserRepo.remove(pending);
+    if (user) {
+      user.isVerified = true;
+      user.verifyToken = null;
+      await this.userRepo.save(user);
 
-    return { message: 'Email verified successfully. You can now log in.' };
+      return { message: 'Email verified successfully. You can now log in.' };
+    }
+
+    throw new BadRequestException('Invalid or expired verification token');
   }
 
   // ============================

@@ -22,17 +22,13 @@ export class MailService {
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #333;">Welcome to Social Media!</h2>
           <p>Please verify your email address by clicking the button below:</p>
-          <table border="0" cellpadding="0" cellspacing="0" style="margin: 30px auto;">
-            <tr>
-              <td align="center" bgcolor="#1877f2" style="border-radius: 6px;">
-                <a href="${link}" target="_blank" 
-                   style="display: block; padding: 12px 32px; color: #ffffff; 
-                          text-decoration: none; font-size: 16px; border-radius: 6px;">
-                  Verify Account
-                </a>
-              </td>
-            </tr>
-          </table>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${link}" 
+               style="background-color: #1877f2; color: white; padding: 12px 32px; 
+                      text-decoration: none; border-radius: 6px; font-size: 16px; display: inline-block;">
+              Verify Account
+            </a>
+          </div>
           <p>Or copy and paste this link in your browser:</p>
           <p style="color: #666; word-break: break-all;">${link}</p>
           <p style="color: #999; font-size: 12px; margin-top: 30px;">

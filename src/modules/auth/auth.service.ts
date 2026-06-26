@@ -116,29 +116,45 @@ export class AuthService {
   }
 
   // ============================
-  // ✅ RESEND VERIFY EMAIL (cho PendingUser)
+  // ✅ RESEND VERIFY EMAIL (cho PendingUser hoặc User chưa verify)
   // ============================
   async resendVerifyEmail(dto: ForgotPasswordDto) {
     const { email } = dto;
 
-    const pending = await this.pendingUserRepo.findOne({
-      where: { email },
+    // Kiểm tra User cũ (isVerified=false)
+    const user = await this.userRepo.findOne({
+      where: { email, isDeleted: false, isVerified: false },
     });
 
-    if (!pending) {
+    if (user) {
+      const verifyToken = uuidv4();
+      user.verifyToken = verifyToken;
+      await this.userRepo.save(user);
+
+      this.mailService.sendVerifyEmail(email, verifyToken).catch((err) => {
+        console.error('Failed to resend verification email:', err);
+      });
+
       return {
         message:
           'If that email is registered and not verified, a verification link has been sent.',
       };
     }
 
-    const verifyToken = uuidv4();
-    pending.verifyToken = verifyToken;
-    await this.pendingUserRepo.save(pending);
-
-    this.mailService.sendVerifyEmail(email, verifyToken).catch((err) => {
-      console.error('Failed to resend verification email:', err);
+    // Kiểm tra PendingUser (register flow mới)
+    const pending = await this.pendingUserRepo.findOne({
+      where: { email },
     });
+
+    if (pending) {
+      const verifyToken = uuidv4();
+      pending.verifyToken = verifyToken;
+      await this.pendingUserRepo.save(pending);
+
+      this.mailService.sendVerifyEmail(email, verifyToken).catch((err) => {
+        console.error('Failed to resend verification email:', err);
+      });
+    }
 
     return {
       message:

@@ -1,38 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class MailService {
-  private transporter: nodemailer.Transporter;
+  private apiKey: string;
 
   constructor() {
-    // SendGrid SMTP (ưu tiên) hoặc Gmail SMTP (fallback)
-    if (process.env.SENDGRID_API_KEY) {
-      // Dùng SendGrid qua SMTP
-      this.transporter = nodemailer.createTransport({
-        host: 'smtp.sendgrid.net',
-        port: 587,
-        secure: false,
-        auth: {
-          user: 'apikey',
-          pass: process.env.SENDGRID_API_KEY,
-        },
-        connectionTimeout: 10000,
-        greetingTimeout: 10000,
-        socketTimeout: 15000,
-      });
-    } else if (process.env.MAIL_HOST && process.env.MAIL_USER) {
-      // Fallback: Gmail SMTP
-      this.transporter = nodemailer.createTransport({
-        host: process.env.MAIL_HOST,
-        port: parseInt(process.env.MAIL_PORT || '587', 10),
-        secure: process.env.MAIL_SECURE === 'true',
-        auth: {
-          user: process.env.MAIL_USER,
-          pass: process.env.MAIL_PASSWORD,
-        },
-      });
-    }
+    this.apiKey = process.env.SENDGRID_API_KEY || '';
   }
 
   // ============================
@@ -42,7 +15,7 @@ export class MailService {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
     const link = `${frontendUrl}/auth/verify?token=${token}`;
 
-    await this.sendMail({
+    await this.sendMailViaApi({
       to,
       subject: 'Verify your account - Social Media',
       html: `
@@ -73,7 +46,7 @@ export class MailService {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
     const link = `${frontendUrl}/auth/reset-password?token=${token}`;
 
-    await this.sendMail({
+    await this.sendMailViaApi({
       to,
       subject: 'Reset your password - Social Media',
       html: `
@@ -98,19 +71,19 @@ export class MailService {
   }
 
   // ============================
-  // ✅ GENERIC SEND MAIL
+  // ✅ SEND VIA SENDGRID WEB API (HTTPS)
   // ============================
-  private async sendMail(options: {
+  private async sendMailViaApi(options: {
     to: string;
     subject: string;
     html: string;
   }) {
     const fromEmail = process.env.MAIL_FROM || 'noreply@social-media.com';
 
-    // Nếu chưa config email, log ra console (dev mode)
-    if (!this.transporter) {
+    // Dev mode: không có API Key
+    if (!this.apiKey) {
       console.log('==================================');
-      console.log('📧 EMAIL (dev mode - no SMTP configured)');
+      console.log('📧 EMAIL (dev mode - no SendGrid API Key)');
       console.log(`To: ${options.to}`);
       console.log(`Subject: ${options.subject}`);
       console.log(`HTML: ${options.html}`);
@@ -118,23 +91,43 @@ export class MailService {
       return;
     }
 
-    console.log(`📧 Sending email to ${options.to} via SendGrid...`);
+    console.log(`📧 Sending email to ${options.to} via SendGrid API...`);
     console.log(`   From: ${fromEmail}`);
     console.log(`   Subject: ${options.subject}`);
 
     try {
-      const info = await this.transporter.sendMail({
-        from: fromEmail,
-        to: options.to,
-        subject: options.subject,
-        html: options.html,
+      const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          personalizations: [
+            {
+              to: [{ email: options.to }],
+              subject: options.subject,
+            },
+          ],
+          from: { email: fromEmail },
+          content: [
+            {
+              type: 'text/html',
+              value: options.html,
+            },
+          ],
+        }),
       });
-      console.log(`✅ Email sent successfully to ${options.to}: ${info.messageId}`);
+
+      if (response.ok) {
+        console.log(`✅ Email sent successfully to ${options.to}`);
+      } else {
+        const errorBody = await response.text();
+        console.error(`❌ SendGrid API error (${response.status}): ${errorBody}`);
+        throw new Error(`SendGrid API error: ${response.status} - ${errorBody}`);
+      }
     } catch (error) {
       console.error(`❌ Failed to send email to ${options.to}:`, error.message);
-      if (error.response) {
-        console.error(`   SendGrid response: ${error.response}`);
-      }
       throw error;
     }
   }

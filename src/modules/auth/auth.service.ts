@@ -19,6 +19,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RefreshToken } from '../../database/entities/refresh-token.entity';
 import { User } from '../../database/entities/user.entity';
+import { PendingUser } from '../../database/entities/pending-user.entity';
 import { MailService } from '../mail/mail.service';
 
 // ✅ util normalize
@@ -53,10 +54,13 @@ export class AuthService {
 
     @InjectRepository(User)
     private userRepo: Repository<User>,
+
+    @InjectRepository(PendingUser)
+    private pendingUserRepo: Repository<PendingUser>,
   ) {}
 
   // ============================
-  // ✅ REGISTER
+  // ✅ REGISTER (lưu tạm PendingUser, chưa tạo tài khoản thật)
   // ============================
   async register(dto: RegisterDto) {
     const { email, password, username, displayName } = dto;
@@ -64,92 +68,116 @@ export class AuthService {
     const normalizedDisplayName =
       normalizeDisplayName(displayName);
 
-    const existing =
-      await this.usersService.findByEmailOrDisplayName(
-        email,
-        normalizedDisplayName,
-      );
+    // Kiểm tra email đã có trong User thật chưa
+    const existingUser = await this.usersService.findByEmail(email);
+    if (existingUser) {
+      throw new BadRequestException('Email already registered');
+    }
 
-    if (existing) {
+    // Kiểm tra displayName đã có trong User thật chưa
+    const existingDisplayName = await this.userRepo.findOne({
+      where: { displayName: normalizedDisplayName },
+    });
+    if (existingDisplayName) {
+      throw new BadRequestException('DisplayName already exists');
+    }
+
+    // Kiểm tra email đã có trong PendingUser chưa
+    const existingPending = await this.pendingUserRepo.findOne({
+      where: { email },
+    });
+    if (existingPending) {
       throw new BadRequestException(
-        'Email or displayName already exists',
+        'This email is already pending verification. Please check your inbox or request a new verification email.',
       );
     }
 
     const hash = await bcrypt.hash(password, 10);
-
     const verifyToken = uuidv4();
 
-    const user = await this.usersService.create({
+    // Lưu vào PendingUser (chưa tạo tài khoản thật)
+    await this.pendingUserRepo.save({
       email,
+      password: hash,
       username,
       displayName: normalizedDisplayName,
-      password: hash,
-      isVerified: false,
       verifyToken,
     });
 
-    // Gửi email verify (fire & forget - không block response)
+    // Gửi email verify (fire & forget)
     this.mailService.sendVerifyEmail(email, verifyToken).catch((err) => {
       console.error('Failed to send verification email:', err);
     });
 
-    const { password: _, ...result } = user;
     return {
-      ...result,
       message:
-        'Account created. Please check your email to verify your account.',
+        'Please check your email to verify your account. Your account will be created after verification.',
     };
   }
 
   // ============================
-  // ✅ RESEND VERIFY EMAIL
+  // ✅ RESEND VERIFY EMAIL (cho PendingUser)
   // ============================
   async resendVerifyEmail(dto: ForgotPasswordDto) {
     const { email } = dto;
 
-    const user = await this.userRepo.findOne({
-      where: { email, isDeleted: false },
+    const pending = await this.pendingUserRepo.findOne({
+      where: { email },
     });
 
-    if (!user || user.isVerified) {
+    if (!pending) {
       return {
-        message: 'If that email is registered and not verified, a verification link has been sent.',
+        message:
+          'If that email is registered and not verified, a verification link has been sent.',
       };
     }
 
     const verifyToken = uuidv4();
-    user.verifyToken = verifyToken;
-    await this.userRepo.save(user);
+    pending.verifyToken = verifyToken;
+    await this.pendingUserRepo.save(pending);
 
     this.mailService.sendVerifyEmail(email, verifyToken).catch((err) => {
       console.error('Failed to resend verification email:', err);
     });
 
     return {
-      message: 'If that email is registered and not verified, a verification link has been sent.',
+      message:
+        'If that email is registered and not verified, a verification link has been sent.',
     };
   }
 
   // ============================
-  // ✅ VERIFY EMAIL
+  // ✅ VERIFY EMAIL (tạo User thật từ PendingUser)
   // ============================
   async verifyEmail(token: string) {
-    const user = await this.userRepo.findOne({
+    const pending = await this.pendingUserRepo.findOne({
       where: { verifyToken: token },
     });
 
-    if (!user) {
+    if (!pending) {
       throw new BadRequestException('Invalid or expired verification token');
     }
 
-    if (user.isVerified) {
+    // Kiểm tra lại lần nữa xem email đã tồn tại trong User chưa (tránh race condition)
+    const existingUser = await this.usersService.findByEmail(pending.email);
+    if (existingUser) {
+      // Nếu user đã tồn tại, xoá pending và báo thành công
+      await this.pendingUserRepo.remove(pending);
       return { message: 'Email already verified. You can log in.' };
     }
 
-    user.isVerified = true;
-    user.verifyToken = null;
-    await this.userRepo.save(user);
+    // Tạo User thật
+    const user = await this.usersService.create({
+      email: pending.email,
+      password: pending.password,
+      username: pending.username,
+      displayName: pending.displayName,
+      isVerified: true,
+      verifyToken: null,
+    });
+
+    // Xoá PendingUser
+    await this.pendingUserRepo.remove(pending);
 
     return { message: 'Email verified successfully. You can now log in.' };
   }

@@ -10,13 +10,14 @@ import { MailModule } from '../mail/mail.module';
 import { JwtStrategy } from './jwt.strategy';
 import { RefreshToken } from '../../database/entities/refresh-token.entity';
 import { User } from '../../database/entities/user.entity';
+import { PendingUser } from '../../database/entities/pending-user.entity';
 
 @Module({
   imports: [
     UsersModule,
     MailModule,
 
-    TypeOrmModule.forFeature([RefreshToken, User]),
+    TypeOrmModule.forFeature([RefreshToken, User, PendingUser]),
 
     PassportModule.register({ defaultStrategy: 'jwt' }),
 

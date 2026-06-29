@@ -262,8 +262,17 @@ export class AuthService {
     });
 
     if (!fullUser.isVerified) {
+      // Tự động gửi lại verification email
+      const verifyToken = uuidv4();
+      fullUser.verifyToken = verifyToken;
+      await this.userRepo.save(fullUser);
+
+      this.mailService.sendVerifyEmail(email, verifyToken).catch((err) => {
+        console.error('Failed to send verification email:', err);
+      });
+
       throw new UnauthorizedException(
-        'Email not verified. Please check your inbox.',
+        'Email not verified. A new verification link has been sent to your email.',
       );
     }
 

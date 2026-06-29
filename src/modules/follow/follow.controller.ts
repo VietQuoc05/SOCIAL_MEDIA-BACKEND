@@ -43,6 +43,12 @@ export class FollowController {
     return this.service.getFollowStats(userId || user.id);
   }
 
+  @ApiOperation({ summary: 'Get suggested users (mutual friends)' })
+  @Get('suggested')
+  suggested(@CurrentUser() user: any, @Query('limit') limit?: string) {
+    return this.service.getSuggestedUsers(user.id, limit ? parseInt(limit, 10) : 5);
+  }
+
   @ApiOperation({ summary: 'Follow user' })
   @Post(':id')
   follow(@Param('id') id: string, @CurrentUser() user: any) {

@@ -90,6 +90,18 @@ export class NotificationsService {
       return null;
     }
 
+    if (data.type === NotificationType.FOLLOW_REQUEST) {
+      await this.repo.update(
+        {
+          recipientId: data.recipientId,
+          actorId: data.actorId,
+          type: NotificationType.FOLLOW_REQUEST,
+          isRead: false,
+        },
+        { isRead: true },
+      );
+    }
+
     const notification = this.repo.create({
       recipientId: data.recipientId,
       actorId: data.actorId,
@@ -108,5 +120,21 @@ export class NotificationsService {
     this.gateway.emitNotification(withRelations);
 
     return withRelations;
+  }
+
+  async markReadByTypeAndActor(
+    recipientId: string,
+    actorId: string,
+    type: NotificationType,
+  ) {
+    await this.repo.update(
+      {
+        recipientId,
+        actorId,
+        type,
+        isRead: false,
+      },
+      { isRead: true },
+    );
   }
 }

@@ -10,6 +10,7 @@ import { CommentsModule } from './modules/comments/comments.module';
 import { ReactionsModule } from './modules/reactions/reactions.module';
 import { UploadModule } from './modules/uploads/upload.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 // ✅ IMPORT EVENTS MODULE
 import { EventsModule } from './events/events.module';
@@ -41,6 +42,7 @@ import { EventsModule } from './events/events.module';
     ReactionsModule,
     UploadModule,
     ChatModule,
+    NotificationsModule,
 
     EventsModule, // ✅ thêm vào đây
   ],

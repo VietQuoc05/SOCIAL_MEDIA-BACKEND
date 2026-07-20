@@ -1,12 +1,16 @@
 import {
   Injectable,
   BadRequestException,
+  NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 
 import { Follow } from '../../database/entities/follow.entity';
 import { User } from '../../database/entities/user.entity';
+import { Notification, NotificationType } from '../../database/entities/notification.entity';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class FollowService {
@@ -15,83 +19,199 @@ export class FollowService {
     private repo: Repository<Follow>,
     @InjectRepository(User)
     private userRepo: Repository<User>,
+    @InjectRepository(Notification)
+    private notificationRepo: Repository<Notification>,
+    private notificationsService: NotificationsService,
   ) {}
 
-  // ✅ FOLLOW
   async follow(userId: string, targetId: string) {
     if (userId === targetId) {
       throw new BadRequestException('Cannot follow yourself');
     }
 
-    const exists = await this.repo.findOne({
+    const target = await this.userRepo.findOne({
+      where: { id: targetId, isDeleted: false },
+    });
+
+    if (!target) {
+      throw new NotFoundException('User not found');
+    }
+
+    const existing = await this.repo.findOne({
       where: {
         follower: { id: userId },
         following: { id: targetId },
       },
     });
 
-    if (exists) {
-      throw new BadRequestException('Already following');
+    if (existing) {
+      if (existing.status === 'PENDING') {
+        throw new BadRequestException('Follow request already sent');
+      }
+      if (existing.status === 'ACCEPTED') {
+        throw new BadRequestException('Already following');
+      }
+      if (existing.status === 'REJECTED') {
+        existing.status = 'PENDING';
+        await this.repo.save(existing);
+        await this.notificationsService.create({
+          recipientId: targetId,
+          actorId: userId,
+          type: NotificationType.FOLLOW_REQUEST,
+        });
+        return existing;
+      }
     }
 
-    // ✅ FIX CHÍNH
+    const isPrivate = !target.isPublicFollowers;
+    const status = isPrivate ? 'PENDING' : 'ACCEPTED';
+
     const follow = this.repo.create({
       follower: { id: userId },
       following: { id: targetId },
+      status,
     });
 
-    return this.repo.save(follow);
+    const saved = await this.repo.save(follow);
+
+    if (isPrivate) {
+      await this.notificationsService.create({
+        recipientId: targetId,
+        actorId: userId,
+        type: NotificationType.FOLLOW_REQUEST,
+      });
+    }
+
+    return saved;
   }
 
-  // ✅ UNFOLLOW
   async unfollow(userId: string, targetId: string) {
-    return this.repo.delete({
+    const follow = await this.repo.findOne({
+      where: {
+        follower: { id: userId },
+        following: { id: targetId },
+      },
+    });
+
+    if (!follow) {
+      throw new NotFoundException('Not following this user');
+    }
+
+    if (follow.status === 'PENDING') {
+      await this.repo.delete(follow.id);
+      return { success: true };
+    }
+
+    await this.repo.delete({
       follower: { id: userId },
       following: { id: targetId },
     });
+
+    return { success: true };
   }
 
-  // ✅ LẤY FOLLOWERS (ai follow mình)
+  async acceptFollowRequest(followerId: string, followingId: string) {
+    const follow = await this.repo.findOne({
+      where: {
+        follower: { id: followerId },
+        following: { id: followingId },
+      },
+      relations: ['follower', 'following'],
+    });
+
+    if (!follow) {
+      throw new NotFoundException('Follow request not found');
+    }
+
+    if (follow.status !== 'PENDING') {
+      throw new BadRequestException('No pending follow request');
+    }
+
+    follow.status = 'ACCEPTED';
+    await this.repo.save(follow);
+
+    await this.notificationsService.create({
+      recipientId: followerId,
+      actorId: followingId,
+      type: NotificationType.FOLLOW_ACCEPTED,
+    });
+
+    return follow;
+  }
+
+  async rejectFollowRequest(followerId: string, followingId: string) {
+    const follow = await this.repo.findOne({
+      where: {
+        follower: { id: followerId },
+        following: { id: followingId },
+      },
+    });
+
+    if (!follow) {
+      throw new NotFoundException('Follow request not found');
+    }
+
+    if (follow.status !== 'PENDING') {
+      throw new BadRequestException('No pending follow request');
+    }
+
+    follow.status = 'REJECTED';
+    await this.repo.save(follow);
+
+    await this.repo.delete(follow.id);
+
+    return { success: true };
+  }
+
   async getFollowers(userId: string) {
+    const user = await this.userRepo.findOne({
+      where: { id: userId, isDeleted: false },
+    });
+
+    if (!user) throw new NotFoundException('User not found');
+
     return this.repo.find({
-      where: { following: { id: userId } },
+      where: { following: { id: userId }, status: 'ACCEPTED' },
       relations: ['follower'],
+      order: { createdAt: 'DESC' },
     });
   }
 
-  // ✅ LẤY FOLLOWING (mình follow ai)
   async getFollowing(userId: string) {
+    const user = await this.userRepo.findOne({
+      where: { id: userId, isDeleted: false },
+    });
+
+    if (!user) throw new NotFoundException('User not found');
+
     return this.repo.find({
-      where: { follower: { id: userId } },
+      where: { follower: { id: userId }, status: 'ACCEPTED' },
       relations: ['following'],
+      order: { createdAt: 'DESC' },
     });
   }
 
-  // ✅ COUNT (QUAN TRỌNG)
   async getFollowStats(userId: string) {
-    const followers = await this.repo.count({
-      where: { following: { id: userId } },
-    });
-
-    const following = await this.repo.count({
-      where: { follower: { id: userId } },
-    });
+    const [followers, following] = await Promise.all([
+      this.repo.count({
+        where: { following: { id: userId }, status: 'ACCEPTED' },
+      }),
+      this.repo.count({
+        where: { follower: { id: userId }, status: 'ACCEPTED' },
+      }),
+    ]);
 
     return { followers, following };
   }
 
-  // ✅ SUGGESTED FOR YOU (users with most mutual friends, not yet followed)
   async getSuggestedUsers(userId: string, limit = 5) {
-    // 1. Get IDs of users the current user is already following
     const following = await this.repo.find({
-      where: { follower: { id: userId } },
+      where: { follower: { id: userId }, status: 'ACCEPTED' },
       relations: ['following'],
     });
     const followingIds = following.map(f => f.following.id);
-    // Include own ID to exclude self
     const excludeIds = [...followingIds, userId];
 
-    // 2. Get all users not in excludeIds
     const candidates = await this.userRepo.find({
       where: { isDeleted: false },
       take: 50,
@@ -100,18 +220,15 @@ export class FollowService {
 
     const filteredCandidates = candidates.filter(u => !excludeIds.includes(u.id));
 
-    // 3. For each candidate, count mutual friends
     const myFollowingIds = followingIds;
     const suggestedWithMutual = await Promise.all(
       filteredCandidates.map(async (candidate) => {
-        // Get candidate's followers
         const candidateFollowers = await this.repo.find({
-          where: { following: { id: candidate.id } },
+          where: { following: { id: candidate.id }, status: 'ACCEPTED' },
           relations: ['follower'],
         });
         const candidateFollowerIds = candidateFollowers.map(f => f.follower.id);
 
-        // Count mutual = my following that also follow candidate
         const mutualCount = myFollowingIds.filter(id =>
           candidateFollowerIds.includes(id),
         ).length;
@@ -126,8 +243,31 @@ export class FollowService {
       }),
     );
 
-    // 4. Sort by mutual count descending, take top N
     suggestedWithMutual.sort((a, b) => b.mutualFriendCount - a.mutualFriendCount);
     return suggestedWithMutual.slice(0, limit);
+  }
+
+  async getPendingRequests(userId: string) {
+    return this.repo.find({
+      where: { following: { id: userId }, status: 'PENDING' },
+      relations: ['follower'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async getFollowStatus(followerId: string, targetId: string) {
+    const follow = await this.repo.findOne({
+      where: {
+        follower: { id: followerId },
+        following: { id: targetId },
+      },
+    });
+
+    if (!follow) return 'not_follow_yet';
+    if (follow.status === 'PENDING') return 'pending';
+    if (follow.status === 'ACCEPTED') return 'followed';
+    if (follow.status === 'REJECTED') return 'not_follow_yet';
+
+    return 'not_follow_yet';
   }
 }

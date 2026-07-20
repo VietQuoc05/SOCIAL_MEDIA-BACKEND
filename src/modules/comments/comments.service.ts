@@ -3,7 +3,6 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
-
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 
@@ -11,6 +10,8 @@ import { Comment } from '../../database/entities/comment.entity';
 import { Post } from '../../database/entities/post.entity';
 import { Reaction } from '../../database/entities/reaction.entity';
 import { EventsGateway } from '../../events/events.gateway';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../../database/entities/notification.entity';
 
 @Injectable()
 export class CommentsService {
@@ -25,6 +26,7 @@ export class CommentsService {
     private reactionRepo: Repository<Reaction>,
 
     private gateway: EventsGateway,
+    private notificationsService: NotificationsService,
   ) {}
 
   // ============================
@@ -61,6 +63,23 @@ export class CommentsService {
       ...commentWithAuthor,
       postId: postId,
     });
+
+    if (dto.parentId) {
+      const parentComment = await this.repo.findOne({
+        where: { id: dto.parentId },
+        relations: ['author'],
+      });
+
+      if (parentComment && parentComment.author.id !== userId) {
+        await this.notificationsService.create({
+          recipientId: parentComment.author.id,
+          actorId: userId,
+          type: NotificationType.COMMENT_REPLY,
+          postId: postId,
+          commentId: saved.id,
+        });
+      }
+    }
 
     return saved;
   }

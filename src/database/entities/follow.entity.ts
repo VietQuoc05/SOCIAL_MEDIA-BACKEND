@@ -46,5 +46,8 @@ export class Follow {
   // ============================
   @CreateDateColumn()
   createdAt: Date;
+
+  @Column({ type: 'varchar', length: 20, default: 'ACCEPTED' })
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
 }
 ``

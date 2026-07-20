@@ -6,6 +6,8 @@ import {
   UseGuards,
   Get,
   Query,
+  Patch,
+  Body,
 } from '@nestjs/common';
 
 import { FollowService } from './follow.service';
@@ -59,5 +61,23 @@ export class FollowController {
   @Delete(':id')
   unfollow(@Param('id') id: string, @CurrentUser() user: any) {
     return this.service.unfollow(user.id, id);
+  }
+
+  @ApiOperation({ summary: 'Get pending follow requests' })
+  @Get('requests')
+  getRequests(@CurrentUser() user: any) {
+    return this.service.getPendingRequests(user.id);
+  }
+
+  @ApiOperation({ summary: 'Accept follow request' })
+  @Patch(':id/accept')
+  accept(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.acceptFollowRequest(id, user.id);
+  }
+
+  @ApiOperation({ summary: 'Reject follow request' })
+  @Delete(':id/reject')
+  reject(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.rejectFollowRequest(id, user.id);
   }
 }

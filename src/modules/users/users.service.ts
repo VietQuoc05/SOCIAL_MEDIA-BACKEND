@@ -159,12 +159,35 @@ export class UsersService {
       mutualFriendCount = mutual;
     }
 
-    return {
+    const isPrivate = !user.isPublicFollowers;
+    const isSelf = currentUserId === id;
+    const isFollowingUser = followStatus === 'followed';
+
+    let response: any = {
       ...user,
       ...stats,
       mutualFriendCount,
       followStatus,
     };
+
+    if (isPrivate && !isSelf && !isFollowingUser) {
+      response = {
+        id: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        avatar: user.avatar,
+        cover: user.cover,
+        bio: user.bio,
+        isPublicFollowers: user.isPublicFollowers,
+        isPublicFollowing: user.isPublicFollowing,
+        ...stats,
+        followStatus: 'not_follow_yet',
+        mutualFriendCount: 0,
+        isPrivate: true,
+      };
+    }
+
+    return response;
   }
 
   // ============================

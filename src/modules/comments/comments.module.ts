@@ -9,6 +9,7 @@ import { CommentsService } from './comments.service';
 import { CommentsController } from './comments.controller';
 
 import { EventsModule } from '../../events/events.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { EventsModule } from '../../events/events.module';
       Reaction,
     ]),
     EventsModule,
+    NotificationsModule,
   ],
   providers: [CommentsService],
   controllers: [CommentsController],

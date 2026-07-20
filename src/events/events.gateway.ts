@@ -67,6 +67,10 @@ export class EventsGateway
     this.server.emit('messages_read', data);
   }
 
+  emitNotification(data: any) {
+    this.server.emit('new_notification', data);
+  }
+
   // ============================
   // ✅ TYPING
   // ============================

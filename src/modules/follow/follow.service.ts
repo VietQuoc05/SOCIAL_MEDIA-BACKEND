@@ -126,10 +126,9 @@ export class FollowService {
     follow.status = 'ACCEPTED';
     await this.repo.save(follow);
 
-    await this.notificationsService.markReadByTypeAndActor(
+    await this.notificationsService.deleteFollowRequestNotifications(
       followingId,
       followerId,
-      NotificationType.FOLLOW_REQUEST,
     );
 
     await this.notificationsService.create({
@@ -154,10 +153,9 @@ export class FollowService {
       await this.repo.delete(follow.id);
     }
 
-    await this.notificationsService.markReadByTypeAndActor(
+    await this.notificationsService.deleteFollowRequestNotifications(
       followingId,
       followerId,
-      NotificationType.FOLLOW_REQUEST,
     );
 
     return { success: true };

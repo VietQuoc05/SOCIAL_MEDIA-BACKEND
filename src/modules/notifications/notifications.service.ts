@@ -91,15 +91,11 @@ export class NotificationsService {
     }
 
     if (data.type === NotificationType.FOLLOW_REQUEST) {
-      await this.repo.update(
-        {
-          recipientId: data.recipientId,
-          actorId: data.actorId,
-          type: NotificationType.FOLLOW_REQUEST,
-          isRead: false,
-        },
-        { isRead: true },
-      );
+      await this.repo.delete({
+        recipientId: data.recipientId,
+        actorId: data.actorId,
+        type: NotificationType.FOLLOW_REQUEST,
+      });
     }
 
     const notification = this.repo.create({
@@ -122,19 +118,14 @@ export class NotificationsService {
     return withRelations;
   }
 
-  async markReadByTypeAndActor(
+  async deleteFollowRequestNotifications(
     recipientId: string,
     actorId: string,
-    type: NotificationType,
   ) {
-    await this.repo.update(
-      {
-        recipientId,
-        actorId,
-        type,
-        isRead: false,
-      },
-      { isRead: true },
-    );
+    await this.repo.delete({
+      recipientId,
+      actorId,
+      type: NotificationType.FOLLOW_REQUEST,
+    });
   }
 }

@@ -115,16 +115,12 @@ export class FollowService {
       where: {
         follower: { id: followerId },
         following: { id: followingId },
+        status: 'PENDING',
       },
-      relations: ['follower', 'following'],
     });
 
     if (!follow) {
       throw new NotFoundException('Follow request not found');
-    }
-
-    if (follow.status !== 'PENDING') {
-      throw new BadRequestException('No pending follow request');
     }
 
     follow.status = 'ACCEPTED';
@@ -150,27 +146,19 @@ export class FollowService {
       where: {
         follower: { id: followerId },
         following: { id: followingId },
+        status: 'PENDING',
       },
     });
 
-    if (!follow) {
-      throw new NotFoundException('Follow request not found');
+    if (follow) {
+      await this.repo.delete(follow.id);
     }
-
-    if (follow.status !== 'PENDING') {
-      throw new BadRequestException('No pending follow request');
-    }
-
-    follow.status = 'REJECTED';
-    await this.repo.save(follow);
 
     await this.notificationsService.markReadByTypeAndActor(
       followingId,
       followerId,
       NotificationType.FOLLOW_REQUEST,
     );
-
-    await this.repo.delete(follow.id);
 
     return { success: true };
   }

@@ -138,6 +138,9 @@ export class UsersService {
 
     const stats = await this.buildUserStats(id);
 
+    const { totalPosts } = await this.recountTotalPosts(id);
+    stats.postsCount = totalPosts;
+
     let mutualFriendCount = 0;
     let followStatus = 'not_follow_yet';
 
@@ -180,7 +183,7 @@ export class UsersService {
         bio: user.bio,
         isPublicFollowers: user.isPublicFollowers,
         isPublicFollowing: user.isPublicFollowing,
-        totalPosts: user.totalPosts,
+        totalPosts,
         ...stats,
         followStatus: 'not_follow_yet',
         mutualFriendCount: 0,

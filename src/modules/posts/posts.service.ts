@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, Or } from 'typeorm';
 
 import { Post } from '../../database/entities/post.entity';
 import { Follow } from '../../database/entities/follow.entity';
@@ -208,12 +208,35 @@ export class PostsService {
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
+    const followedUsers = await this.followRepo.find({
+      where: { followerId: userId, status: 'ACCEPTED' },
+      select: ['followingId'],
+    });
+
+    const followedIds = followedUsers.map(f => f.followingId);
+
+    const visibilityConditions: string[] = [
+      'post.authorId = :userId',
+      'author.isPublicFollowers = :isPublic',
+    ];
+
+    const parameters: Record<string, any> = {
+      userId,
+      isPublic: true,
+    };
+
+    if (followedIds.length > 0) {
+      visibilityConditions.push('post.authorId IN (:...followedIds)');
+      parameters.followedIds = followedIds;
+    }
+
     const qb = this.repo
       .createQueryBuilder('post')
       .leftJoinAndSelect('post.author', 'author')
       .where('post.createdAt > :date', {
         date: oneWeekAgo,
-      });
+      })
+      .andWhere(visibilityConditions.join(' OR '), parameters);
 
     if (cursor) {
       qb.andWhere('post.createdAt < :cursor', {

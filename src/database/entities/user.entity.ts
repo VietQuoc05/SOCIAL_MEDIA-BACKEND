@@ -103,6 +103,9 @@ export class User {
   @Column({ default: false })
   isDeleted: boolean;
 
+  @Column({ default: 0 })
+  totalPosts: number;
+
   // ============================
   // ✅ CREATED
   // ============================

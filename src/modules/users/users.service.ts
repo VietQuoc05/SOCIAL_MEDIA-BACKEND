@@ -180,6 +180,7 @@ export class UsersService {
         bio: user.bio,
         isPublicFollowers: user.isPublicFollowers,
         isPublicFollowing: user.isPublicFollowing,
+        totalPosts: user.totalPosts,
         ...stats,
         followStatus: 'not_follow_yet',
         mutualFriendCount: 0,

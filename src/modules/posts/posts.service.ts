@@ -11,6 +11,7 @@ import { Repository, In } from 'typeorm';
 import { Post } from '../../database/entities/post.entity';
 import { Follow } from '../../database/entities/follow.entity';
 import { Reaction } from '../../database/entities/reaction.entity';
+import { UsersService } from '../users/users.service';
 import { EventsGateway } from '../../events/events.gateway';
 
 @Injectable()
@@ -24,6 +25,8 @@ export class PostsService {
 
     @InjectRepository(Reaction)
     private reactionRepo: Repository<Reaction>,
+
+    private usersService: UsersService,
 
     private gateway: EventsGateway,
   ) {}
@@ -59,7 +62,9 @@ export class PostsService {
 
     this.gateway.emitPostCreated(postWithAuthor);
 
-    return saved;
+    const { totalPosts } = await this.usersService.recountTotalPosts(userId);
+
+    return { ...saved, totalPosts };
   }
 
   // ============================
@@ -141,7 +146,9 @@ export class PostsService {
 
     this.gateway.emitPostDeleted(postId);
 
-    return { message: 'Post deleted' };
+    const { totalPosts } = await this.usersService.recountTotalPosts(userId);
+
+    return { message: 'Post deleted', totalPosts };
   }
 
   // ============================

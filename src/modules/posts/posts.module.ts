@@ -10,6 +10,7 @@ import { PostsController } from './posts.controller';
 
 import { UploadModule } from '../uploads/upload.module';
 import { EventsModule } from '../../events/events.module';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { EventsModule } from '../../events/events.module';
     ]),
     UploadModule,
     EventsModule,
+    UsersModule,
   ],
   providers: [PostsService],
   controllers: [PostsController],

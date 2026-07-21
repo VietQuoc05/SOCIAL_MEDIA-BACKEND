@@ -6,6 +6,7 @@ import {
   Param,
   Query,
   UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
 
 import { UsersService } from './users.service';
@@ -88,6 +89,20 @@ export class UsersController {
     @CurrentUser() user: any,
   ) {
     return this.service.getFollowing(id, user?.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Patch(':id/recount-posts')
+  async recountPosts(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
+    if (user?.id !== id) {
+      throw new ForbiddenException('No permission');
+    }
+
+    return this.service.recountTotalPosts(id);
   }
 
   @UseGuards(JwtAuthGuard)

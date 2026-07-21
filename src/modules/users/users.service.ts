@@ -192,6 +192,21 @@ export class UsersService {
   }
 
   // ============================
+  // ✅ RECOUNT TOTAL POSTS
+  // ============================
+  async recountTotalPosts(userId: string) {
+    const count = await this.postRepo.count({
+      where: { authorId: userId },
+    });
+
+    await this.repo.update(userId, {
+      totalPosts: count,
+    });
+
+    return { totalPosts: count };
+  }
+
+  // ============================
   // ✅ FOLLOWERS
   // ============================
   async getFollowers(userId: string, currentUserId?: string) {

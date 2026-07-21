@@ -11,7 +11,6 @@ import { Repository, In } from 'typeorm';
 import { Post } from '../../database/entities/post.entity';
 import { Follow } from '../../database/entities/follow.entity';
 import { Reaction } from '../../database/entities/reaction.entity';
-import { User } from '../../database/entities/user.entity';
 import { EventsGateway } from '../../events/events.gateway';
 
 @Injectable()
@@ -25,9 +24,6 @@ export class PostsService {
 
     @InjectRepository(Reaction)
     private reactionRepo: Repository<Reaction>,
-
-    @InjectRepository(User)
-    private userRepo: Repository<User>,
 
     private gateway: EventsGateway,
   ) {}
@@ -55,10 +51,6 @@ export class PostsService {
     });
 
     const saved = await this.repo.save(post);
-
-    await this.userRepo.update(userId, {
-      totalPosts: () => 'totalPosts + 1',
-    });
 
     const postWithAuthor = await this.repo.findOne({
       where: { id: saved.id },
@@ -146,10 +138,6 @@ export class PostsService {
     }
 
     await this.repo.delete(postId);
-
-    await this.userRepo.update(userId, {
-      totalPosts: () => 'totalPosts - 1',
-    });
 
     this.gateway.emitPostDeleted(postId);
 

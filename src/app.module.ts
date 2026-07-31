@@ -11,6 +11,7 @@ import { ReactionsModule } from './modules/reactions/reactions.module';
 import { UploadModule } from './modules/uploads/upload.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { RecentSearchesModule } from './modules/recent-searches/recent-searches.module';
 
 // ✅ IMPORT EVENTS MODULE
 import { EventsModule } from './events/events.module';
@@ -43,6 +44,7 @@ import { EventsModule } from './events/events.module';
     UploadModule,
     ChatModule,
     NotificationsModule,
+    RecentSearchesModule,
 
     EventsModule, // ✅ thêm vào đây
   ],

@@ -61,6 +61,26 @@ export class PostsController {
 
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get trending posts (sorted by interactionScore)' })
+  @ApiQuery({ name: 'cursor', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  @Get('trending')
+  trending(
+    @CurrentUser() user: any,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: number,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    return this.service.getTrending(
+      user.id,
+      cursor,
+      Number(limit) || 20,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get feed (infinite scroll with cursor)' })
   @ApiQuery({ name: 'cursor', required: false })
   @ApiQuery({ name: 'limit', required: false })

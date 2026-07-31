@@ -274,6 +274,76 @@ export class PostsService {
   }
 
   // ============================
+  // ✅ TRENDING (sorted by interactionScore, no time filter)
+  // ============================
+  async getTrending(
+    userId: string,
+    cursor?: string,
+    limit = 20,
+  ) {
+    const followedUsers = await this.followRepo.find({
+      where: { followerId: userId, status: 'ACCEPTED' },
+      select: ['followingId'],
+    });
+
+    const followedIds = followedUsers.map(f => f.followingId);
+
+    const visibilityConditions: string[] = [
+      'post.authorId = :userId',
+      'author.isPublicFollowers = :isPublic',
+    ];
+
+    const parameters: Record<string, any> = {
+      userId,
+      isPublic: true,
+    };
+
+    if (followedIds.length > 0) {
+      visibilityConditions.push('post.authorId IN (:...followedIds)');
+      parameters.followedIds = followedIds;
+    }
+
+    const qb = this.repo
+      .createQueryBuilder('post')
+      .leftJoinAndSelect('post.author', 'author')
+      .where(visibilityConditions.join(' OR '), parameters);
+
+    if (cursor) {
+      qb.andWhere('post.createdAt < :cursor', {
+        cursor: new Date(cursor),
+      });
+    }
+
+    qb.orderBy('post.interactionScore', 'DESC')
+      .addOrderBy('post.createdAt', 'DESC')
+      .take(limit);
+
+    const posts = await qb.getMany();
+
+    let reactions: Reaction[] = [];
+
+    if (posts.length > 0) {
+      reactions = await this.reactionRepo.find({
+        where: {
+          post: { id: In(posts.map(p => p.id)) },
+        },
+        relations: ['post', 'user'],
+      });
+    }
+
+    const data = this.attachSummary(posts, reactions, userId);
+
+    return {
+      data,
+      nextCursor:
+        posts.length > 0
+          ? posts[posts.length - 1].createdAt
+          : null,
+      hasMore: posts.length === limit,
+    };
+  }
+
+  // ============================
   // ✅ FIND ALL
   // ============================
   async findAll(userId?: string) {

@@ -110,7 +110,7 @@ export class UsersController {
   @Patch('me')
   async update(
     @CurrentUser() user: any,
-    @Body() dto: { username?: string; displayName?: string; bio?: string; avatar?: string; cover?: string; isPublicFollowers?: boolean; isPublicFollowing?: boolean },
+    @Body() dto: { username?: string; displayName?: string; bio?: string; avatar?: string; cover?: string; facebook?: string; instagram?: string; isPublicFollowers?: boolean; isPublicFollowing?: boolean },
   ) {
     return this.service.updateProfile(user.id, dto);
   }

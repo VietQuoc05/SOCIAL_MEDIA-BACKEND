@@ -81,13 +81,7 @@ export class AuthService {
       verifyToken: null,
     });
 
-    return {
-      id: user.id,
-      email: user.email,
-      username: user.username,
-      displayName: user.displayName,
-      message: 'Registration successful',
-    };
+    return this.generateTokens(user);
   }
 
   // ============================
